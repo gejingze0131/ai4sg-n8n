@@ -1,0 +1,428 @@
+{
+  "id": "ai4sgSearchAgt01",
+  "name": "AI4SG · 2 Search Agent (Skill: search)",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 2 · Search Agent (runs the Search Skill)\nHandles one task at a time, e.g. **Indonesia × id × news**. The agent's system prompt = **the full Search Skill** (the experts' search methodology) + this task.\nThe agent decides which language, keywords, sites and pages to use, instead of calling fixed APIs.\nTools: multilingual web/news search (SearXNG, by language and region), scholarly search (OpenAlex), open-source projects (GitHub), read full web page or PDF (sub-workflow 0), Think (plan before searching).\nOutput: a structured candidate list; each item must state source type, country, language and why it was selected.",
+        "width": 1480,
+        "height": 144,
+        "color": 7
+      },
+      "id": "256f57f7-49c9-5006-9156-b28939f66754",
+      "name": "Note · overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -214
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "country"
+            },
+            {
+              "name": "language"
+            },
+            {
+              "name": "source_type"
+            },
+            {
+              "name": "domains"
+            },
+            {
+              "name": "skill_version"
+            }
+          ]
+        }
+      },
+      "id": "8abbf810-7c34-5513-87f3-c56aa0c10a7a",
+      "name": "When called by Orchestrator",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT version, content FROM skills WHERE name = 'search' AND version = $1",
+        "options": {
+          "queryReplacement": "={{ [ $json.skill_version ] }}"
+        }
+      },
+      "id": "8ed23e92-2ff9-5f46-a80c-ee3046cb00d2",
+      "name": "Load Search Skill",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        240,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const t = $('When called by Orchestrator').first().json;\nconst skill = $input.first().json;\nreturn [{ json: {\n  system_prompt: skill.content,\n  task: `Country: ${t.country}\\nSearch language: ${t.language}\\nSource type: ${t.source_type}\\n` +\n        `Preferred domains: ${t.domains || '(none)'}\\n` +\n        `Find AI-for-social-good projects, deployments, evaluations or policies matching this task, following the skill. ` +\n        `Search in the local language first, then English. Read each promising page before listing it. ` +\n        `Return up to 15 candidates.`,\n}}];\n"
+      },
+      "id": "a3711261-25bb-5e44-bd91-481be5755783",
+      "name": "Compose Agent Task",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.task }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "={{ $json.system_prompt }}",
+          "maxIterations": 25
+        }
+      },
+      "id": "d10ea588-1e34-5b28-a976-3a5ef1bc9a31",
+      "name": "Search Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "gpt-4o"
+        },
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "471705f4-815c-5f99-ac60-34a0ca84cc24",
+      "name": "LLM",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        560,
+        260
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "ai4sgOpenAiApi01",
+          "name": "AI4SG LLM (OpenAI-compatible)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "numResults": 10,
+          "language": "={{ $('When called by Orchestrator').first().json.language }}"
+        }
+      },
+      "id": "9c319cbb-5ce6-5e4b-96a4-06a07a93fa34",
+      "name": "Web & News Search (SearXNG)",
+      "type": "@n8n/n8n-nodes-langchain.toolSearXng",
+      "typeVersion": 1,
+      "position": [
+        720,
+        260
+      ],
+      "credentials": {
+        "searXngApi": {
+          "id": "ai4sgSearxng0001",
+          "name": "AI4SG SearXNG"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Search scholarly works (journals, conference papers, reports) via OpenAlex. Input: a search query in any language.",
+        "url": "https://api.openalex.org/works",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "search",
+              "value": "={{ $fromAI('query', 'search terms', 'string') }}"
+            },
+            {
+              "name": "per-page",
+              "value": "15"
+            },
+            {
+              "name": "select",
+              "value": "id,doi,title,publication_year,primary_location,authorships,language"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "89a9eec9-9492-5ec3-ba86-9bf38661d79e",
+      "name": "Scholarly Search (OpenAlex)",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "toolDescription": "Search GitHub repositories. Input: a GitHub search query, e.g. 'flood forecasting bangladesh'.",
+        "url": "https://api.github.com/search/repositories",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $fromAI('query', 'GitHub search query', 'string') }}"
+            },
+            {
+              "name": "per_page",
+              "value": "15"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "90fcf8b5-d501-5905-a42c-f207f3aefd1b",
+      "name": "Open-source Search (GitHub)",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        260
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgGithubTok01",
+          "name": "AI4SG GitHub Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "Read the full text of a web page or PDF (government reports, conference proceedings, news articles). Input: the URL.",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "ai4sgFetchDoc001"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "url": "={{ $fromAI('url', 'URL to read', 'string') }}"
+          },
+          "schema": [
+            {
+              "id": "url",
+              "displayName": "url",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        }
+      },
+      "id": "472680fe-7cb0-5f14-afed-9218c724085d",
+      "name": "Read Document",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        260
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "2bdbac0a-7735-5ded-bc41-0074fcd168f1",
+      "name": "Think",
+      "type": "@n8n/n8n-nodes-langchain.toolThink",
+      "typeVersion": 1.1,
+      "position": [
+        1360,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"required\": [\n    \"candidates\"\n  ],\n  \"properties\": {\n    \"candidates\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"required\": [\n          \"url\",\n          \"title\",\n          \"source_type\",\n          \"country\",\n          \"language\",\n          \"why_relevant\"\n        ],\n        \"properties\": {\n          \"url\": {\n            \"type\": \"string\"\n          },\n          \"title\": {\n            \"type\": \"string\"\n          },\n          \"title_en\": {\n            \"type\": \"string\"\n          },\n          \"source_type\": {\n            \"type\": \"string\",\n            \"enum\": [\n              \"news\",\n              \"journal\",\n              \"open_source\",\n              \"gov_website\",\n              \"conference_report\",\n              \"gov_report\",\n              \"ngo_report\",\n              \"other\"\n            ]\n          },\n          \"country\": {\n            \"type\": \"string\"\n          },\n          \"language\": {\n            \"type\": \"string\"\n          },\n          \"published\": {\n            \"type\": \"string\"\n          },\n          \"why_relevant\": {\n            \"type\": \"string\",\n            \"description\": \"1-2 sentences, English\"\n          },\n          \"search_query\": {\n            \"type\": \"string\",\n            \"description\": \"the query that found it\"\n          }\n        }\n      }\n    }\n  }\n}"
+      },
+      "id": "28cf27e0-a27c-544d-9ac0-98901de80c75",
+      "name": "Candidate List Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1520,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Drop malformed rows, normalise URLs for dedupe, stamp provenance\nconst t = $('When called by Orchestrator').first().json;\nconst out = [];\nfor (const c of ($input.first().json.output?.candidates || [])) {\n  if (!/^https?:\\/\\//.test(c.url || '')) continue;\n  const u = new URL(c.url); u.hash = '';\n  ['utm_source', 'utm_medium', 'utm_campaign', 'fbclid', 'gclid'].forEach((k) => u.searchParams.delete(k));\n  out.push({ json: { ...c, url_norm: u.toString().replace(/\\/$/, '').toLowerCase(), skill_version: Number(t.skill_version) } });\n}\nreturn out;\n"
+      },
+      "id": "6a9df261-96f4-5348-b4bc-f7893280e5d4",
+      "name": "Validate & Tag Candidates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When called by Orchestrator": {
+      "main": [
+        [
+          {
+            "node": "Load Search Skill",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Search Skill": {
+      "main": [
+        [
+          {
+            "node": "Compose Agent Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose Agent Task": {
+      "main": [
+        [
+          {
+            "node": "Search Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Agent": {
+      "main": [
+        [
+          {
+            "node": "Validate & Tag Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Search Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Web & News Search (SearXNG)": {
+      "ai_tool": [
+        [
+          {
+            "node": "Search Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scholarly Search (OpenAlex)": {
+      "ai_tool": [
+        [
+          {
+            "node": "Search Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open-source Search (GitHub)": {
+      "ai_tool": [
+        [
+          {
+            "node": "Search Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Document": {
+      "ai_tool": [
+        [
+          {
+            "node": "Search Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Think": {
+      "ai_tool": [
+        [
+          {
+            "node": "Search Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Candidate List Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Search Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Singapore"
+  },
+  "tags": []
+}

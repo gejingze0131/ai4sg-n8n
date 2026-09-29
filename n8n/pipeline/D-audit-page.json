@@ -1,0 +1,199 @@
+{
+  "id": "ai4sgAuditPage01",
+  "name": "AI4SG · D Audit Page",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "### 🧑‍🔬 Audit page: http://localhost:5678/webhook/ai4sg-audit\n**Nothing to run here.** This workflow is the page's web server: it stays published, and every time someone opens the address n8n runs it once (reads the results, fills in `n8n/audit/audit.html`, returns the page). Shows results that passed the relevance screen; filtered-out sources are hidden by default. Protected by the page login (user and password in `.env`: AI4SG_PAGE_USER / AI4SG_PAGE_PASSWORD).",
+        "width": 1440,
+        "height": 250,
+        "color": 4
+      },
+      "id": "ddf98f0f-81d9-530b-abbd-99a63dc17bbd",
+      "name": "Audit",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -150
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "ai4sg-audit",
+        "authentication": "basicAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "17dc248f-ba01-5330-bfbd-f856f3cb1fd3",
+      "name": "Audit Page",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        40
+      ],
+      "webhookId": "e071918c-30e4-54e2-96e7-776f76da9bb7",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "ai4sgPageAuth001",
+          "name": "AI4SG Page Login"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT e.id, e.fields, e.flags, e.confidence, e.status, e.created_at, s.url, s.title, s.title_en, s.why_relevant,\n       s.country, s.language, s.source_type, s.format\nFROM extractions e JOIN sources s ON s.id = e.source_id ORDER BY e.created_at DESC LIMIT 500",
+        "options": {}
+      },
+      "id": "40d5cfaa-1d63-510f-9f56-afc29a53e2b2",
+      "name": "Load Results",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        240,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "/import/audit/audit.html",
+        "options": {}
+      },
+      "id": "03d13d14-5e22-505e-8cf4-1624e9c34ecb",
+      "name": "Load Page Template",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        480,
+        40
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {}
+      },
+      "id": "ed00a5fd-5514-5a2d-9a77-460ab5db9ff7",
+      "name": "Template to Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        700,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Inject the results into the HTML template (or return JSON with ?format=json)\nconst rows = $('Load Results').all().map(i => i.json).filter(r => r.id);\nif (($('Audit Page').first().json.query || {}).format === 'json') {\n  return [{ json: { body: JSON.stringify(rows), type: 'application/json; charset=utf-8' } }];\n}\nconst html = $input.first().json.data.replace('/*__DATA__*/[]', JSON.stringify(rows).replace(/</g, '\\\\u003c'));\nreturn [{ json: { body: html, type: 'text/html; charset=utf-8' } }];\n"
+      },
+      "id": "5fd25abf-5115-527e-848c-b1fa79630ffd",
+      "name": "Render Page",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.body }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "={{ $json.type }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "acac4d01-cbf9-5b0c-a7d5-5011c6d91204",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1160,
+        40
+      ]
+    }
+  ],
+  "connections": {
+    "Audit Page": {
+      "main": [
+        [
+          {
+            "node": "Load Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Results": {
+      "main": [
+        [
+          {
+            "node": "Load Page Template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Page Template": {
+      "main": [
+        [
+          {
+            "node": "Template to Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Template to Text": {
+      "main": [
+        [
+          {
+            "node": "Render Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Page": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Singapore"
+  },
+  "tags": []
+}

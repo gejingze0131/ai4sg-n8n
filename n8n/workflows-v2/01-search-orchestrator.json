@@ -1,0 +1,432 @@
+{
+  "id": "ai4sgSearchOrc01",
+  "name": "AI4SG · 1 Search Orchestrator",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 1 · Search Orchestrator (plans search tasks from the Search Skill)\nNo more fixed API queries. The **Search Skill** (a document maintained by the experts) defines: focus countries, the languages for each country, source types, trusted domains, search strategy and exclusion rules.\nThis workflow reads the active Search Skill → expands it into country × language × source-type tasks → runs each with the **Search Agent** → dedupes and writes to the `sources` queue → triggers extraction.\nExample: for the task Bangladesh × bn × gov_report, the agent searches in Bengali on *.gov.bd for government report PDFs.",
+        "width": 1700,
+        "height": 123,
+        "color": 7
+      },
+      "id": "467cec49-252a-52a1-9431-9577fc9dc74c",
+      "name": "Note · overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -313
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 🧑‍🔬 Expert entry point A\nThe Search Skill is edited and released by experts in **Expert Hub / Skill Evolution**; this workflow only reads the latest status=active version.",
+        "width": 420,
+        "height": 150,
+        "color": 4
+      },
+      "id": "aef5b56c-2436-5b02-a42d-bf487869a69e",
+      "name": "Hook · skill",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        200,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 6
+            }
+          ]
+        }
+      },
+      "id": "1285bcd2-2d33-5c62-b04e-17417bd28cb8",
+      "name": "Daily 06:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        100
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "4cead796-ccc5-516f-ad09-acfb467cad09",
+      "name": "Run manually",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT name, version, content, config FROM skills WHERE name = 'search' AND status = 'active' ORDER BY version DESC LIMIT 1",
+        "options": {}
+      },
+      "id": "2987f535-af7e-56da-859c-9537f94ac1d7",
+      "name": "Load Search Skill",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        240,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Expand the skill's coverage config into one task per country x language x source type\nconst skill = $input.first().json;\nconst cfg = skill.config;               // parsed from the skill's ```json coverage``` block when it is published\nconst tasks = [];\nfor (const c of cfg.countries) {         // e.g. {name:'Bangladesh', languages:['bn','en'], domains:['gov.bd','ac.bd']}\n  for (const lang of c.languages) {\n    for (const st of cfg.source_types) {  // news | journal | open_source | gov_website | conference_report | gov_report ...\n      tasks.push({ country: c.name, language: lang, source_type: st, domains: c.domains || [],\n                   skill_version: skill.version, run_id: $execution.id });\n    }\n  }\n}\nreturn tasks.slice(0, cfg.max_tasks_per_run || 60).map((json) => ({ json }));\n"
+      },
+      "id": "92dde708-8bfb-59ec-93cc-f211f0a1ed18",
+      "name": "Build Search Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "7233d5ed-1ae0-5d3b-885a-8fd34f36dc67",
+      "name": "Loop Over Tasks",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "ai4sgSearchAgt01"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "country": "={{ $json.country }}",
+            "language": "={{ $json.language }}",
+            "source_type": "={{ $json.source_type }}",
+            "domains": "={{ $json.domains.join(',') }}",
+            "skill_version": "={{ $json.skill_version }}"
+          },
+          "schema": [
+            {
+              "id": "country",
+              "displayName": "country",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "language",
+              "displayName": "language",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source_type",
+              "displayName": "source_type",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "domains",
+              "displayName": "domains",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "skill_version",
+              "displayName": "skill_version",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "de00fea9-0f4c-5564-8dab-fccce8da3672",
+      "name": "Run Search Agent",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        960,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// All agent results for this run (Loop 'done' output)\nreturn $('Run Search Agent').all();\n"
+      },
+      "id": "1cc77429-3bb3-5848-9511-d07edc5858f9",
+      "name": "Collect Candidates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT url_norm FROM sources WHERE url_norm = ANY($1::text[])",
+        "options": {
+          "queryReplacement": "={{ [ $input.all().map(i => i.json.url_norm) ] }}"
+        }
+      },
+      "id": "b46f97b9-e195-5859-a598-764eb5516acb",
+      "name": "Dedupe vs Known Sources",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1200,
+        -120
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const known = new Set($input.all().map(i => i.json.url_norm).filter(Boolean));\nconst seen = new Set();\nreturn $('Collect Candidates').all().filter(({ json }) => {\n  if (!json.url_norm || known.has(json.url_norm) || seen.has(json.url_norm)) return false;\n  seen.add(json.url_norm); return true;\n});\n"
+      },
+      "id": "03cefa4e-31e3-5ba1-b9bd-e8ddc930e8b0",
+      "name": "Keep New Only",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO sources (url, url_norm, title, source_type, country, language, why_relevant, provenance, skill_version, priority, status)\nSELECT url, url_norm, title, source_type, country, language, why_relevant, 'ai_search', skill_version, 0, 'queued'\nFROM jsonb_to_recordset($1::jsonb) AS r(url text, url_norm text, title text, source_type text, country text,\n     language text, why_relevant text, skill_version int)\nON CONFLICT (url_norm) DO NOTHING",
+        "options": {
+          "queryReplacement": "={{ [ JSON.stringify($input.all().map(i => i.json)) ] }}"
+        }
+      },
+      "id": "d59cc61e-b7b4-5933-bce4-47afe2c65b30",
+      "name": "Enqueue Sources",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1680,
+        -120
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "ai4sgExtract0001"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "trigger": "search_run"
+          },
+          "schema": [
+            {
+              "id": "trigger",
+              "displayName": "trigger",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "22117eff-661b-5471-b240-e11bedcef65d",
+      "name": "Start Extraction",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1920,
+        -120
+      ]
+    }
+  ],
+  "connections": {
+    "Run manually": {
+      "main": [
+        [
+          {
+            "node": "Load Search Skill",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily 06:00": {
+      "main": [
+        [
+          {
+            "node": "Load Search Skill",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Search Skill": {
+      "main": [
+        [
+          {
+            "node": "Build Search Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Search Plan": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Tasks": {
+      "main": [
+        [
+          {
+            "node": "Collect Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Run Search Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Search Agent": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Candidates": {
+      "main": [
+        [
+          {
+            "node": "Dedupe vs Known Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedupe vs Known Sources": {
+      "main": [
+        [
+          {
+            "node": "Keep New Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keep New Only": {
+      "main": [
+        [
+          {
+            "node": "Enqueue Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enqueue Sources": {
+      "main": [
+        [
+          {
+            "node": "Start Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Singapore"
+  },
+  "tags": []
+}

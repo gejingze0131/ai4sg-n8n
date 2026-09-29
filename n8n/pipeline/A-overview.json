@@ -1,0 +1,593 @@
+{
+  "id": "ai4sgPipeline001",
+  "name": "AI4SG · A Overview",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## A · AI4SG Overview\nClick **Execute workflow**: the **run page** opens. Choose countries, languages, source types and how many sources to analyse, then **Start run**. The same run page is always at /form/ai4sg-run (locally http://localhost:5678/form/ai4sg-run), behind the page login in `.env`.\nSearch (workflow B) and Extract & Interpretation (workflow C) run the two expert skills. Results go to the audit page (workflow D): http://localhost:5678/webhook/ai4sg-audit",
+        "width": 1980,
+        "height": 130
+      },
+      "id": "3ebfed2c-4da4-5dbb-8062-4421475b3ff3",
+      "name": "Note · title",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -440
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### ⚙️ Run page = this run's settings\n- Countries (+ other countries)\n- Search languages: local / English\n- Source types\n- Topic focus, published from (year)\n- Max web searches\n- Max results per search\n- Max sources to analyse\n- Relevance screen: broad / balanced / strict\n\nChosen each time; the skill files are not edited for a run.",
+        "width": 400,
+        "height": 270,
+        "color": 5
+      },
+      "id": "0d145fca-c896-5121-990d-cad44994935d",
+      "name": "Run settings",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -290
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 🧑‍🔬 Expert deliverables = the interface\n`skills/search/SKILL.md`: what counts as AI for Social Good; how to search each source type; local-language keywords; trusted sites; each country's ISO code and local languages.  → used by **B · Search** (and by the relevance screen in C)\n`skills/extraction/SKILL.md` + `skills/extraction/examples/`: the fields to extract, how to interpret them (cost, benefit, beneficiaries, strength of evidence …), and the experts' own worked extractions.  → used by **C · Extract & Interpretation**",
+        "width": 1560,
+        "height": 150,
+        "color": 4
+      },
+      "id": "3ada0b89-c395-5c8a-a5f2-c3b74e745a48",
+      "name": "Skill interface",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        360,
+        -290
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "basicAuth",
+        "formTitle": "AI4SG · Start a run",
+        "formDescription": "Choose what to search in this run. Each web search covers one country × language × source type (e.g. Bangladesh × Bengali × News). Sources collected in earlier runs are skipped. What counts as AI for Social Good, local keywords and extraction rules stay in the experts' skill files.\nResults: <a href=\"/webhook/ai4sg-audit\">audit page</a>",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Countries",
+              "fieldType": "checkbox",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Bangladesh"
+                  },
+                  {
+                    "option": "India"
+                  },
+                  {
+                    "option": "Indonesia"
+                  },
+                  {
+                    "option": "Thailand"
+                  }
+                ]
+              },
+              "defaultValue": "Bangladesh"
+            },
+            {
+              "fieldLabel": "Other countries",
+              "fieldType": "text",
+              "placeholder": "Optional, e.g. Vietnam, Nepal"
+            },
+            {
+              "fieldLabel": "Search languages",
+              "fieldType": "checkbox",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Local language"
+                  },
+                  {
+                    "option": "English"
+                  }
+                ]
+              },
+              "defaultValue": "Local language,English",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Source types",
+              "fieldType": "checkbox",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "News"
+                  },
+                  {
+                    "option": "Government reports (PDF)"
+                  },
+                  {
+                    "option": "Government websites"
+                  },
+                  {
+                    "option": "Journal papers"
+                  },
+                  {
+                    "option": "Conference reports"
+                  },
+                  {
+                    "option": "Open-source code & data"
+                  }
+                ]
+              },
+              "defaultValue": "News,Government reports (PDF),Journal papers",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Topic focus",
+              "fieldType": "text",
+              "placeholder": "Optional, e.g. health, agriculture, flood early warning"
+            },
+            {
+              "fieldLabel": "Published from (year)",
+              "fieldType": "number",
+              "placeholder": "Optional, e.g. 2022"
+            },
+            {
+              "fieldLabel": "Max web searches",
+              "fieldType": "number",
+              "defaultValue": "6",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Max results per search",
+              "fieldType": "number",
+              "defaultValue": "10",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Max sources to analyse",
+              "fieldType": "number",
+              "defaultValue": "10",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Relevance screen",
+              "fieldType": "radio",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Broad (0.4)"
+                  },
+                  {
+                    "option": "Balanced (0.6)"
+                  },
+                  {
+                    "option": "Strict (0.8)"
+                  }
+                ]
+              },
+              "defaultValue": "Balanced (0.6)",
+              "requiredField": true
+            }
+          ]
+        },
+        "responseMode": "onReceived",
+        "options": {
+          "path": "ai4sg-run",
+          "buttonLabel": "Start run",
+          "appendAttribution": false,
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Run started. Searching and analysing takes 5 to 15 minutes. New results then appear on the audit page (this site's address + /webhook/ai4sg-audit, also linked at the top of the run page)."
+            }
+          }
+        }
+      },
+      "id": "3685f9e3-d64a-5aec-84e6-1129369d49ac",
+      "name": "Run page",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [
+        0,
+        40
+      ],
+      "webhookId": "b362f1b7-4d26-50c1-9d45-09f9bcf907e8",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "ai4sgPageAuth001",
+          "name": "AI4SG Page Login"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "/skills/search/SKILL.md",
+        "options": {}
+      },
+      "id": "bfb87cb0-6c07-5ceb-9624-eef88fbbce48",
+      "name": "Load Search Skill",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        240,
+        40
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {}
+      },
+      "id": "83077eb9-a510-5a66-92e5-b7786b3d1902",
+      "name": "Skill to Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        460,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Run page answers + the Search Skill's country list -> one search task per country x language x source type\nconst form = $('Run page').first().json;\nconst skill = $input.first().json.data;\nlet registry;\ntry { registry = JSON.parse(skill.match(/```json countries\\s*([\\s\\S]*?)```/)[1]).countries; }\ncatch (e) { throw new Error('Search Skill: the \"json countries\" block is missing or is not valid JSON'); }\nconst list = (v) => (Array.isArray(v) ? v : String(v || '').split(/[,;\\n]+/)).map(s => String(s).trim()).filter(Boolean);\nconst num = (v, d) => (Number(v) > 0 ? Number(v) : d);\nconst known = (n) => registry.find(c => [c.name, c.iso].some(k => String(k || '').toLowerCase() === n.toLowerCase()));\n// a country missing from the Search Skill's list is still searched, in English only\nconst countries = [...new Map([...list(form['Countries']), ...list(form['Other countries'])]\n  .map(n => known(n) || { name: n, iso: '', local_languages: [] }).map(c => [c.name, c])).values()];\nif (!countries.length) throw new Error('Run page: choose at least one country');\nconst TYPES = {\"News\": \"news\", \"Government reports (PDF)\": \"gov_report\", \"Government websites\": \"gov_website\", \"Journal papers\": \"journal\", \"Conference reports\": \"conference_report\", \"Open-source code & data\": \"open_source\"};\nconst types = list(form['Source types']).map(t => TYPES[t]).filter(Boolean);\nconst langs = list(form['Search languages']);\nconst settings = {\n  focus: form['Topic focus'] || '',\n  since_year: num(form['Published from (year)'], ''),\n  max_results: num(form['Max results per search'], 10),\n  max_sources: num(form['Max sources to analyse'], 10),\n  min_relevance: Number((String(form['Relevance screen'] || '').match(/[\\d.]+/) || ['0.6'])[0]),\n};\n// order: all countries first, then languages, then source types, so \"Max web searches\" drops whole source types from the end\nconst tasks = [];\nfor (const source_type of types)\n  for (const which of ['Local language', 'English']) if (langs.includes(which))\n    for (const c of countries)\n      for (const language of which === 'English' ? ['en'] : (c.local_languages || []))\n        tasks.push({ search_skill: skill, country: c.name, country_code: c.iso || '', language, source_type, ...settings });\nif (!tasks.length) throw new Error('Run page: nothing to search. Choose at least one source type and one language');\nreturn tasks.slice(0, num(form['Max web searches'], 6)).map((json) => ({ json }));\n"
+      },
+      "id": "e5d1fefe-fe0d-5688-b0cd-94db1f31067a",
+      "name": "Plan Search Tasks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "ai4sgSearchAgt01"
+        },
+        "mode": "each",
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "search_skill": "={{ $json.search_skill }}",
+            "country": "={{ $json.country }}",
+            "country_code": "={{ $json.country_code }}",
+            "language": "={{ $json.language }}",
+            "source_type": "={{ $json.source_type }}",
+            "focus": "={{ $json.focus }}",
+            "since_year": "={{ $json.since_year }}",
+            "max_results": "={{ $json.max_results }}"
+          },
+          "schema": [
+            {
+              "id": "search_skill",
+              "displayName": "search_skill",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "country",
+              "displayName": "country",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "country_code",
+              "displayName": "country_code",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "language",
+              "displayName": "language",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source_type",
+              "displayName": "source_type",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "focus",
+              "displayName": "focus",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "since_year",
+              "displayName": "since_year",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "max_results",
+              "displayName": "max_results",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "ae795d1a-9869-5200-9afc-b543cf758801",
+      "name": "B · Search",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        920,
+        40
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- drop sources seen in earlier runs, take turns across the searches, keep at most \"Max sources to analyse\"\nWITH cand AS (\n  SELECT r.*, o.ord\n  FROM jsonb_array_elements($1::jsonb) WITH ORDINALITY AS o(j, ord),\n       jsonb_to_record(o.j) AS r(url text, url_norm text, title text, title_en text, source_type text, format text,\n                                 country text, language text, why_relevant text)\n  WHERE r.url_norm IS NOT NULL\n), fresh AS (\n  SELECT DISTINCT ON (url_norm) * FROM cand\n  WHERE NOT EXISTS (SELECT 1 FROM sources s WHERE s.url_norm = cand.url_norm)\n  ORDER BY url_norm, ord\n), picked AS (\n  SELECT *, row_number() OVER (PARTITION BY country, language, source_type ORDER BY ord) AS turn FROM fresh\n  ORDER BY turn, ord\n  LIMIT $2::int\n)\nINSERT INTO sources (url, url_norm, title, title_en, source_type, format, country, language, why_relevant)\nSELECT url, url_norm, title, title_en, source_type, format, country, language, why_relevant FROM picked ORDER BY turn, ord\nON CONFLICT (url_norm) DO NOTHING\nRETURNING id AS source_id, url, format, country, language",
+        "options": {
+          "queryReplacement": "={{ [ JSON.stringify($input.all().map(i => i.json)), $('Plan Search Tasks').first().json.max_sources ] }}"
+        }
+      },
+      "id": "93f735d1-fbb6-50a2-801b-76fba49b1f98",
+      "name": "Save New Sources (up to max)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1160,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "sid",
+              "leftValue": "={{ $json.source_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "cfe1eaa8-b2c1-561c-9bc5-7fd92b7a9153",
+      "name": "New Sources Only",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        1400,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "ai4sgExtract0001"
+        },
+        "mode": "each",
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "source_id": "={{ $json.source_id }}",
+            "url": "={{ $json.url }}",
+            "format": "={{ $json.format }}",
+            "country": "={{ $json.country }}",
+            "language": "={{ $json.language }}",
+            "min_relevance": "={{ $('Plan Search Tasks').first().json.min_relevance }}"
+          },
+          "schema": [
+            {
+              "id": "source_id",
+              "displayName": "source_id",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "url",
+              "displayName": "url",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "format",
+              "displayName": "format",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "country",
+              "displayName": "country",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "language",
+              "displayName": "language",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "min_relevance",
+              "displayName": "min_relevance",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "704b53ec-9710-523d-8b6a-7c52a952b605",
+      "name": "C · Extract & Interpretation",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1640,
+        40
+      ],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Run page": {
+      "main": [
+        [
+          {
+            "node": "Load Search Skill",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Search Skill": {
+      "main": [
+        [
+          {
+            "node": "Skill to Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skill to Text": {
+      "main": [
+        [
+          {
+            "node": "Plan Search Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan Search Tasks": {
+      "main": [
+        [
+          {
+            "node": "B · Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "B · Search": {
+      "main": [
+        [
+          {
+            "node": "Save New Sources (up to max)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save New Sources (up to max)": {
+      "main": [
+        [
+          {
+            "node": "New Sources Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Sources Only": {
+      "main": [
+        [
+          {
+            "node": "C · Extract & Interpretation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Singapore"
+  },
+  "tags": []
+}

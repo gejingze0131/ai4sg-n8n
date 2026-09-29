@@ -1,0 +1,495 @@
+{
+  "id": "ai4sgExtract0001",
+  "name": "AI4SG · 3 Extraction & Interpretation (Skill: extraction)",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 3 · Extraction & Interpretation (runs the Extraction Skill)\nTakes pending items from the `sources` queue (found by AI or submitted by experts) → fetches full text → extracts field by field following the **Extraction Skill** (the experts' interpretation framework: cost, benefit, beneficiaries, strength of evidence, etc.).\nThe prompt also includes **gold examples extracted by the experts themselves**, so the model follows their conventions.\nEvery field must cite the source (original local-language sentence + English translation); **Verify Evidence** checks each quote really occurs in the text and lowers confidence if not.\nAll results are stored as `pending_review` and only count once an expert confirms them on the audit page.",
+        "width": 2000,
+        "height": 144,
+        "color": 7
+      },
+      "id": "daecb4d9-990c-5ce1-8f82-32714d16aa1a",
+      "name": "Note · overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -314
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 🧑‍🔬 Expert entry point B\n**Extraction Skill** = the experts' focus and priors (e.g. emphasis on cost / benefit) written as field definitions and judgement rules;\n**Gold examples** = extractions the experts made by hand in the Expert Hub. Both are maintained by the experts.",
+        "width": 460,
+        "height": 170,
+        "color": 4
+      },
+      "id": "d8ace142-bb34-5e68-9ec1-9bdc75f9beca",
+      "name": "Hook · rubric",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        460,
+        170
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "645a54bd-312b-58b2-bf38-bad58f7696cf",
+      "name": "Every 30 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "trigger"
+            }
+          ]
+        }
+      },
+      "id": "2cb272cd-daf4-57a8-9aaa-f8c2d59974ad",
+      "name": "When called",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE sources SET status = 'processing', claimed_at = now()\nWHERE id IN (SELECT id FROM sources WHERE status = 'queued'\n             ORDER BY priority DESC, created_at LIMIT 20 FOR UPDATE SKIP LOCKED)\nRETURNING *",
+        "options": {}
+      },
+      "id": "57bfb184-ea0b-5e09-87cd-816a308b85e4",
+      "name": "Claim Queued Sources",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        240,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT version, content FROM skills WHERE name = 'extraction' AND status = 'active' ORDER BY version DESC LIMIT 1",
+        "options": {}
+      },
+      "id": "ab4c925a-f8ca-5b07-908a-f4ef06679ed7",
+      "name": "Load Extraction Skill",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        480,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT g.fields, s.title, s.language, left(s.fulltext, 3000) AS excerpt\nFROM gold_extractions g JOIN sources s ON s.id = g.source_id\nWHERE g.use_as_example ORDER BY g.created_at DESC LIMIT 4",
+        "options": {}
+      },
+      "id": "07f580c4-9414-56ae-b045-2d4e8099884b",
+      "name": "Load Gold Examples",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        720,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return $('Claim Queued Sources').all();\n"
+      },
+      "id": "2870f150-72ea-529c-9bb5-af18827d6112",
+      "name": "Restore Source Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "ee1614e2-42e6-5996-81b4-bde51e12b3e1",
+      "name": "Loop Over Sources",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "ai4sgFetchDoc001"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "url": "={{ $json.url }}"
+          },
+          "schema": [
+            {
+              "id": "url",
+              "displayName": "url",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "2e38092d-056e-55a5-b5fb-b6717cf52c01",
+      "name": "Fetch Full Text",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1440,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Skill 2 text + expert gold examples (few-shot) + this document\nconst skill = $('Load Extraction Skill').first().json;\nconst gold = $('Load Gold Examples').all().map(i => i.json).filter(g => g.fields);\nconst src = $('Loop Over Sources').first().json;\nconst doc = $input.first().json;\nconst examples = gold.map((g, i) =>\n  `### Expert example ${i + 1} (${g.language}): ${g.title}\\nExcerpt: ${g.excerpt}\\nExpert extraction: ${JSON.stringify(g.fields)}`).join('\\n\\n');\nreturn [{ json: {\n  source_id: src.id, skill_version: skill.version, fulltext: doc.text, lang: doc.lang,\n  prompt: `${skill.content}\\n\\n## Examples from our experts\\n${examples || '(none yet)'}\\n\\n` +\n          `## Document to analyse\\nURL: ${src.url}\\nCountry hint: ${src.country}\\nLanguage: ${doc.lang}\\n\\n${doc.text.slice(0, 40000)}`,\n}}];\n"
+      },
+      "id": "66b63579-b3dc-5bbb-b90a-6114d758bb58",
+      "name": "Compose Extraction Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "hasOutputParser": true
+      },
+      "id": "9c9c8e3b-1ff9-5c42-b583-c0e1e05a560c",
+      "name": "Extract per Expert Rubric",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        1940,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "gpt-4o"
+        },
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "880ea074-18ec-5d52-a46b-7316f35e31eb",
+      "name": "LLM",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1860,
+        380
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "ai4sgOpenAiApi01",
+          "name": "AI4SG LLM (OpenAI-compatible)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"required\": [\n    \"is_ai4sg\",\n    \"project_name\",\n    \"countries\",\n    \"cost\",\n    \"benefit\",\n    \"evidence_type\",\n    \"evidence\",\n    \"summary_en\"\n  ],\n  \"properties\": {\n    \"is_ai4sg\": {\n      \"type\": \"boolean\"\n    },\n    \"project_name\": {\n      \"type\": \"string\"\n    },\n    \"implementing_org\": {\n      \"type\": \"string\"\n    },\n    \"org_type\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"government\",\n        \"ngo\",\n        \"academic\",\n        \"company\",\n        \"multilateral\",\n        \"community\",\n        \"unknown\"\n      ]\n    },\n    \"countries\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"subnational_location\": {\n      \"type\": \"string\"\n    },\n    \"domain\": {\n      \"type\": \"string\"\n    },\n    \"ai_technique\": {\n      \"type\": \"string\"\n    },\n    \"deployment_stage\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"idea\",\n        \"pilot\",\n        \"scaled\",\n        \"discontinued\",\n        \"unknown\"\n      ]\n    },\n    \"target_beneficiaries\": {\n      \"type\": \"string\"\n    },\n    \"reach\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"number\": {\n          \"type\": \"number\"\n        },\n        \"unit\": {\n          \"type\": \"string\"\n        }\n      }\n    },\n    \"cost\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"amount\": {\n          \"type\": \"number\"\n        },\n        \"currency\": {\n          \"type\": \"string\"\n        },\n        \"period\": {\n          \"type\": \"string\"\n        },\n        \"what_is_covered\": {\n          \"type\": \"string\"\n        },\n        \"cost_per_beneficiary\": {\n          \"type\": \"number\"\n        },\n        \"stated\": {\n          \"type\": \"boolean\"\n        }\n      }\n    },\n    \"benefit\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"outcome\": {\n          \"type\": \"string\"\n        },\n        \"metric\": {\n          \"type\": \"string\"\n        },\n        \"magnitude\": {\n          \"type\": \"string\"\n        },\n        \"comparison\": {\n          \"type\": \"string\",\n          \"description\": \"counterfactual / baseline, if any\"\n        },\n        \"stated\": {\n          \"type\": \"boolean\"\n        }\n      }\n    },\n    \"evidence_type\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"rct\",\n        \"quasi_experimental\",\n        \"observational\",\n        \"pilot_report\",\n        \"anecdotal\",\n        \"none\"\n      ]\n    },\n    \"funders\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"risks_limitations\": {\n      \"type\": \"string\"\n    },\n    \"summary_en\": {\n      \"type\": \"string\"\n    },\n    \"evidence\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"required\": [\n          \"field\",\n          \"quote_original\"\n        ],\n        \"properties\": {\n          \"field\": {\n            \"type\": \"string\"\n          },\n          \"quote_original\": {\n            \"type\": \"string\"\n          },\n          \"quote_en\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"self_confidence\": {\n      \"type\": \"number\"\n    }\n  }\n}"
+      },
+      "id": "5323a197-bf07-537d-bff8-a13c79342b82",
+      "name": "Extraction Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2040,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Every cited quote must actually occur in the source text; unsupported cost/benefit claims lower confidence\nconst ctx = $('Compose Extraction Prompt').first().json;\nconst x = $input.first().json.output;\nconst norm = (s) => String(s || '').replace(/\\s+/g, ' ').trim().toLowerCase();\nconst text = norm(ctx.fulltext);\nconst checks = (x.evidence || []).map(e => ({ ...e, found: e.quote_original && text.includes(norm(e.quote_original).slice(0, 120)) }));\nconst supported = (f) => checks.some(c => c.field.startsWith(f) && c.found);\nconst flags = [];\nif (x.cost?.stated && !supported('cost')) flags.push('cost_without_evidence');\nif (x.benefit?.stated && !supported('benefit')) flags.push('benefit_without_evidence');\nif (checks.some(c => !c.found)) flags.push('quote_not_found');\nconst verified = checks.length ? checks.filter(c => c.found).length / checks.length : 0;\nconst confidence = Math.round(100 * Math.min(x.self_confidence ?? 0.5, verified)) / 100;\nreturn [{ json: { source_id: ctx.source_id, skill_version: ctx.skill_version, fields: { ...x, evidence: checks },\n                  flags, confidence } }];\n"
+      },
+      "id": "94755910-1515-5069-8b21-7e48a87c7865",
+      "name": "Verify Evidence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH ins AS (\n  INSERT INTO extractions (source_id, skill_version, model, fields, flags, confidence, status)\n  VALUES ($1, $2, 'gpt-4o', $3::jsonb, $4::jsonb, $5, 'pending_review') RETURNING source_id)\nUPDATE sources SET status = 'extracted' WHERE id = (SELECT source_id FROM ins)",
+        "options": {
+          "queryReplacement": "={{ [ $json.source_id, $json.skill_version, JSON.stringify($json.fields), JSON.stringify($json.flags), $json.confidence ] }}"
+        }
+      },
+      "id": "16da5fbb-bd44-591b-a3de-0b3d9491df6d",
+      "name": "Save for Review",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2440,
+        100
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { processed: $('Save for Review').all().length } }];\n"
+      },
+      "id": "9f35c287-c550-527c-a610-b2477a1e034f",
+      "name": "Batch Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        -100
+      ]
+    }
+  ],
+  "connections": {
+    "When called": {
+      "main": [
+        [
+          {
+            "node": "Claim Queued Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 30 min": {
+      "main": [
+        [
+          {
+            "node": "Claim Queued Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim Queued Sources": {
+      "main": [
+        [
+          {
+            "node": "Load Extraction Skill",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Extraction Skill": {
+      "main": [
+        [
+          {
+            "node": "Load Gold Examples",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Gold Examples": {
+      "main": [
+        [
+          {
+            "node": "Restore Source Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Source Items": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Sources": {
+      "main": [
+        [
+          {
+            "node": "Batch Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Full Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Full Text": {
+      "main": [
+        [
+          {
+            "node": "Compose Extraction Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose Extraction Prompt": {
+      "main": [
+        [
+          {
+            "node": "Extract per Expert Rubric",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract per Expert Rubric": {
+      "main": [
+        [
+          {
+            "node": "Verify Evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Evidence": {
+      "main": [
+        [
+          {
+            "node": "Save for Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save for Review": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Extract per Expert Rubric",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraction Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Extract per Expert Rubric",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Singapore"
+  },
+  "tags": []
+}

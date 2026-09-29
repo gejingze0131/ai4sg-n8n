@@ -1,0 +1,504 @@
+{
+  "id": "ai4sgPipeline001",
+  "name": "AI4SG · A Overview",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## A · AI4SG Overview\n**Expert skills → Search → Extract & Interpretation → human audit.** Row 1 runs daily; row 2 is the audit page. Search (workflow B) and Extract & Interpretation (workflow C) are sub-workflows, each driven by one expert skill.",
+        "width": 1900,
+        "height": 110
+      },
+      "id": "3ebfed2c-4da4-5dbb-8062-4421475b3ff3",
+      "name": "Note · title",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -420
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 🧑‍🔬 Expert deliverables = the interface\n`skills/search/SKILL.md`: what counts as AI for Social Good; focus countries (with ISO code) and their languages, e.g. Bangladesh BD: bn, en · India IN: hi, bn, ta, en · Indonesia ID: id, en · Thailand TH: th, en; source types; local-language keywords; trusted sites; exclusions.  → used by **B · Search**\n`skills/extraction/SKILL.md` + `skills/extraction/examples/`: the fields to extract, how to interpret them (cost, benefit, beneficiaries, strength of evidence …), and the experts' own worked extractions.  → used by **C · Extract & Interpretation**",
+        "width": 1900,
+        "height": 150,
+        "color": 4
+      },
+      "id": "3ada0b89-c395-5c8a-a5f2-c3b74e745a48",
+      "name": "Skill interface",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -290
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "85c2abe3-a8f8-5725-9ef8-f0c204a5e6b4",
+      "name": "Run manually",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 6
+            }
+          ]
+        }
+      },
+      "id": "2497f4b9-0274-5321-b836-acb741d3490c",
+      "name": "Daily 06:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "/skills/search/SKILL.md",
+        "options": {}
+      },
+      "id": "bfb87cb0-6c07-5ceb-9624-eef88fbbce48",
+      "name": "Load Search Skill",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        240,
+        40
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {}
+      },
+      "id": "83077eb9-a510-5a66-92e5-b7786b3d1902",
+      "name": "Skill to Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        460,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Expand the Search Skill's coverage block into one task per country x language x source type\nconst skill = $input.first().json.data;\nconst cov = JSON.parse(skill.match(/```json coverage\\s*([\\s\\S]*?)```/)[1]);\n// cov = {countries:[{name:'Bangladesh', iso:'BD', languages:['bn','en']}, ...], source_types:[...], max_tasks_per_run: 40}\nconst tasks = [];\nfor (const c of cov.countries) for (const language of c.languages) for (const source_type of cov.source_types)\n  tasks.push({ search_skill: skill, country: c.name, country_code: c.iso, language, source_type });\nreturn tasks.slice(0, cov.max_tasks_per_run || 40).map((json) => ({ json }));\n"
+      },
+      "id": "e5d1fefe-fe0d-5688-b0cd-94db1f31067a",
+      "name": "Plan Search Tasks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "ai4sgSearchAgt01"
+        },
+        "mode": "each",
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "search_skill": "={{ $json.search_skill }}",
+            "country": "={{ $json.country }}",
+            "country_code": "={{ $json.country_code }}",
+            "language": "={{ $json.language }}",
+            "source_type": "={{ $json.source_type }}"
+          },
+          "schema": [
+            {
+              "id": "search_skill",
+              "displayName": "search_skill",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "country",
+              "displayName": "country",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "country_code",
+              "displayName": "country_code",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "language",
+              "displayName": "language",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source_type",
+              "displayName": "source_type",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "ae795d1a-9869-5200-9afc-b543cf758801",
+      "name": "B · Search",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        920,
+        40
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO sources (url, url_norm, title, source_type, format, country, language, why_relevant)\nSELECT url, url_norm, title, source_type, format, country, language, why_relevant\nFROM jsonb_to_recordset($1::jsonb) AS r(url text, url_norm text, title text, source_type text, format text,\n                                        country text, language text, why_relevant text)\nON CONFLICT (url_norm) DO NOTHING\nRETURNING id AS source_id, url, format, country, language",
+        "options": {
+          "queryReplacement": "={{ [ JSON.stringify($input.all().map(i => i.json).filter(c => c.url_norm)) ] }}"
+        }
+      },
+      "id": "e82ad5e4-c013-5c51-9ca4-0692f6a877d8",
+      "name": "Save New Sources",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1160,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "ai4sgExtract0001"
+        },
+        "mode": "each",
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "source_id": "={{ $json.source_id }}",
+            "url": "={{ $json.url }}",
+            "format": "={{ $json.format }}",
+            "country": "={{ $json.country }}",
+            "language": "={{ $json.language }}"
+          },
+          "schema": [
+            {
+              "id": "source_id",
+              "displayName": "source_id",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "url",
+              "displayName": "url",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "format",
+              "displayName": "format",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "country",
+              "displayName": "country",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "language",
+              "displayName": "language",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "704b53ec-9710-523d-8b6a-7c52a952b605",
+      "name": "C · Extract & Interpretation",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1400,
+        40
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "content": "### 🧑‍🔬 Audit page (MVP front end): GET /webhook/ai4sg\nShows every result with its source link, quotes and evidence flags, newest first, so experts can check quality and correctness. Read-only for the MVP.",
+        "width": 1000,
+        "height": 250,
+        "color": 4
+      },
+      "id": "88927806-3d05-5c23-9985-32e887a2c6fb",
+      "name": "Audit",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "ai4sg",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c67e4b32-222d-5b85-a1c8-37f159fcdbab",
+      "name": "Audit Page",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        450
+      ],
+      "webhookId": "e071918c-30e4-54e2-96e7-776f76da9bb7"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT e.id, e.fields, e.flags, e.confidence, e.status, e.created_at, s.url, s.title, s.country, s.language, s.source_type\nFROM extractions e JOIN sources s ON s.id = e.source_id ORDER BY e.created_at DESC LIMIT 300",
+        "options": {}
+      },
+      "id": "e85453ef-ca7e-5a56-8383-debfed8a68fe",
+      "name": "Load Results",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        240,
+        450
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// One card per result: fields + quotes, evidence flags, link to the source\nconst rows = $input.all().map(i => i.json).filter(r => r.id);\nconst esc = (s) => String(s ?? '').replace(/[&<>\"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c]));\nconst cards = rows.map(r => `<article><h3><a href=\"${esc(r.url)}\" target=\"_blank\">${esc(r.title || r.url)}</a></h3>\n  <p>${esc(r.country)} · ${esc(r.language)} · ${esc(r.source_type)} · confidence ${esc(r.confidence)} · ${esc((r.flags || []).join(', '))}</p>\n  <pre>${esc(JSON.stringify(r.fields, null, 2))}</pre></article>`).join('');\nreturn [{ json: { body: `<!doctype html><meta charset=\"utf-8\"><title>AI4SG Audit</title>\n  <style>body{font:14px system-ui;max-width:960px;margin:24px auto;padding:0 16px}article{border:1px solid #ddd;border-radius:8px;padding:12px;margin:12px 0}pre{white-space:pre-wrap}</style>\n  <h1>AI4SG · results to audit (${rows.length})</h1>${cards}` } }];\n"
+      },
+      "id": "4d43de4d-0f3a-5d46-bda4-a38fd1690a89",
+      "name": "Render Page",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.body }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "377be3c8-5ab7-5031-ac03-a7ac179dca2b",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        450
+      ]
+    }
+  ],
+  "connections": {
+    "Run manually": {
+      "main": [
+        [
+          {
+            "node": "Load Search Skill",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily 06:00": {
+      "main": [
+        [
+          {
+            "node": "Load Search Skill",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Search Skill": {
+      "main": [
+        [
+          {
+            "node": "Skill to Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skill to Text": {
+      "main": [
+        [
+          {
+            "node": "Plan Search Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan Search Tasks": {
+      "main": [
+        [
+          {
+            "node": "B · Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "B · Search": {
+      "main": [
+        [
+          {
+            "node": "Save New Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save New Sources": {
+      "main": [
+        [
+          {
+            "node": "C · Extract & Interpretation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Page": {
+      "main": [
+        [
+          {
+            "node": "Load Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Results": {
+      "main": [
+        [
+          {
+            "node": "Render Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Page": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Singapore"
+  },
+  "tags": []
+}

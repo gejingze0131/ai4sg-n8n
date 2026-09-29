@@ -1,0 +1,787 @@
+{
+  "id": "ai4sgExpertHub01",
+  "name": "AI4SG · 4 Expert Hub (human-in-the-loop)",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 4 · Expert Hub (all expert entry points)\nFour independent entry points:\n**C Submit source**: articles / PDFs the experts found by hand go into the same queue, with priority.\n**D Manual extraction**: an expert fills in an extraction using their own framework, saved as a gold example; the AI also extracts the same source so the two can be compared.\n**E Audit page**: shows each AI extraction with its source quotes for the expert to check.\n**F Review decision**: approve / edit / reject; field-level corrections and reasons are recorded and later drive skill improvements.",
+        "width": 1480,
+        "height": 165,
+        "color": 7
+      },
+      "id": "3f5cf494-49c4-5dd5-beae-8eaba14f900d",
+      "name": "Note · overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -235
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 🧑‍🔬 C · Expert submits a source",
+        "width": 1180,
+        "height": 230,
+        "color": 4
+      },
+      "id": "e117c4f6-9b54-542c-b67b-02aa281cb955",
+      "name": "Hook C",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "formTitle": "Submit a source",
+        "formDescription": "Paste a URL or upload a PDF you found. It will be extracted with priority.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "URL"
+            },
+            {
+              "fieldLabel": "PDF upload",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".pdf"
+            },
+            {
+              "fieldLabel": "Country",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Bangladesh"
+                  },
+                  {
+                    "option": "India"
+                  },
+                  {
+                    "option": "Indonesia"
+                  },
+                  {
+                    "option": "Thailand"
+                  },
+                  {
+                    "option": "Other"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Source type",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "news"
+                  },
+                  {
+                    "option": "journal"
+                  },
+                  {
+                    "option": "open_source"
+                  },
+                  {
+                    "option": "gov_website"
+                  },
+                  {
+                    "option": "conference_report"
+                  },
+                  {
+                    "option": "gov_report"
+                  },
+                  {
+                    "option": "ngo_report"
+                  },
+                  {
+                    "option": "other"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Why it matters (your note)",
+              "fieldType": "textarea"
+            },
+            {
+              "fieldLabel": "Your name",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {
+          "path": "ai4sg-submit-source"
+        }
+      },
+      "id": "d8975cc1-1675-5d7e-b412-e09d0db9cf91",
+      "name": "Expert · Submit Source",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "76f4361d-e4d5-5a4f-9add-fe84e87e5c23"
+    },
+    {
+      "parameters": {
+        "jsCode": "const f = $input.first().json;\nconst url = f['URL'] || null;\nreturn [{ json: { url, url_norm: url ? url.replace(/#.*$/, '').replace(/\\/$/, '').toLowerCase() : null,\n  country: f['Country'], source_type: f['Source type'], why_relevant: f['Why it matters (your note)'],\n  submitted_by: f['Your name'], has_pdf: !!$input.first().binary } }];\n"
+      },
+      "id": "aa6f946b-b18d-573a-92db-018a551e8731",
+      "name": "Normalize Submission",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO sources (url, url_norm, source_type, country, why_relevant, provenance, submitted_by, priority, status)\nVALUES ($1, $2, $3, $4, $5, 'expert', $6, 10, 'queued')\nON CONFLICT (url_norm) DO UPDATE SET priority = 10, provenance = 'expert', submitted_by = EXCLUDED.submitted_by",
+        "options": {
+          "queryReplacement": "={{ [ $json.url, $json.url_norm, $json.source_type, $json.country, $json.why_relevant, $json.submitted_by ] }}"
+        }
+      },
+      "id": "22e2545a-69a4-550e-b762-57e7577d4f84",
+      "name": "Enqueue (priority)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        480,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "ai4sgExtract0001"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "trigger": "expert_submit"
+          },
+          "schema": [
+            {
+              "id": "trigger",
+              "displayName": "trigger",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "e3fac4d4-335e-5c6a-8d7e-ea590f07860f",
+      "name": "Start Extraction",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "completionTitle": "Received",
+        "completionMessage": "Queued for extraction. You will see it on the audit page shortly."
+      },
+      "id": "d1a7c468-7c37-5ef5-a99a-e77bc604a947",
+      "name": "Thank-you Page",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 🧑‍🔬 D · Expert manual extraction (gold example)",
+        "width": 1180,
+        "height": 230,
+        "color": 4
+      },
+      "id": "b1d9ecd3-f804-5395-bd69-887371f90b28",
+      "name": "Hook D",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        190
+      ]
+    },
+    {
+      "parameters": {
+        "formTitle": "Manual extraction",
+        "formDescription": "Record your own reading of a source using the team rubric. Used as a worked example for the AI and to measure agreement.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Source URL",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Project name",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Country",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Bangladesh"
+                  },
+                  {
+                    "option": "India"
+                  },
+                  {
+                    "option": "Indonesia"
+                  },
+                  {
+                    "option": "Thailand"
+                  },
+                  {
+                    "option": "Other"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Cost (amount, currency, what it covers)",
+              "fieldType": "textarea"
+            },
+            {
+              "fieldLabel": "Benefit (outcome, metric, magnitude, comparison)",
+              "fieldType": "textarea"
+            },
+            {
+              "fieldLabel": "Evidence type",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "rct"
+                  },
+                  {
+                    "option": "quasi_experimental"
+                  },
+                  {
+                    "option": "observational"
+                  },
+                  {
+                    "option": "pilot_report"
+                  },
+                  {
+                    "option": "anecdotal"
+                  },
+                  {
+                    "option": "none"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Key quotes (original language)",
+              "fieldType": "textarea"
+            },
+            {
+              "fieldLabel": "Your interpretation / caveats",
+              "fieldType": "textarea"
+            },
+            {
+              "fieldLabel": "Use as example for the AI?",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "yes"
+                  },
+                  {
+                    "option": "no"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Your name",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {
+          "path": "ai4sg-manual-extraction"
+        }
+      },
+      "id": "4511fda9-36dd-58ae-a58e-5f38f8fe912f",
+      "name": "Expert · Manual Extraction",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        270
+      ],
+      "webhookId": "15c0ee89-1f5e-50b5-9e08-bc914f47b8cf"
+    },
+    {
+      "parameters": {
+        "jsCode": "const f = $input.first().json;\nreturn [{ json: { url: f['Source URL'], expert: f['Your name'], use_as_example: f['Use as example for the AI?'] === 'yes',\n  fields: { project_name: f['Project name'], countries: [f['Country']], cost_text: f['Cost (amount, currency, what it covers)'],\n            benefit_text: f['Benefit (outcome, metric, magnitude, comparison)'], evidence_type: f['Evidence type'],\n            quotes: f['Key quotes (original language)'], interpretation: f['Your interpretation / caveats'] } } }];\n"
+      },
+      "id": "afedd8c6-393c-5fdc-97ed-b9802f3e5f1b",
+      "name": "Map to Extraction Schema",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        270
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH s AS (\n  INSERT INTO sources (url, url_norm, provenance, submitted_by, priority, status)\n  VALUES ($1, lower(regexp_replace($1, '/$', '')), 'expert', $2, 10, 'queued')\n  ON CONFLICT (url_norm) DO UPDATE SET priority = 10 RETURNING id)\nINSERT INTO gold_extractions (source_id, expert, fields, use_as_example)\nSELECT id, $2, $3::jsonb, $4 FROM s",
+        "options": {
+          "queryReplacement": "={{ [ $json.url, $json.expert, JSON.stringify($json.fields), $json.use_as_example ] }}"
+        }
+      },
+      "id": "e4f90036-99cc-5792-904f-2da0e4634e3e",
+      "name": "Save Gold Extraction",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        480,
+        270
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "ai4sgExtract0001"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "trigger": "gold_compare"
+          },
+          "schema": [
+            {
+              "id": "trigger",
+              "displayName": "trigger",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "7d041323-4926-5f2f-88cf-83332ba6eed2",
+      "name": "Run AI on Same Source",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        720,
+        270
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "completionTitle": "Saved",
+        "completionMessage": "Your extraction is saved. The AI will extract the same source so the two can be compared."
+      },
+      "id": "a5ccc9bf-3e7c-5510-a87a-924d20e61499",
+      "name": "Thanks",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "position": [
+        960,
+        270
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 🧑‍🔬 E · Audit page (MVP front end): GET /webhook/ai4sg/review",
+        "width": 1180,
+        "height": 230,
+        "color": 4
+      },
+      "id": "a9cc8023-f0d6-5c36-962b-0cdad0db988a",
+      "name": "Hook E",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "ai4sg/review",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c60ab72f-f719-575e-bfa0-570c5ef513ee",
+      "name": "Audit Page",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        540
+      ],
+      "webhookId": "92f9242d-74f2-53fe-a115-b19480fa7552"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT e.id, e.fields, e.flags, e.confidence, e.skill_version, s.url, s.title, s.country, s.language,\n       s.source_type, s.provenance, left(s.fulltext, 20000) AS fulltext\nFROM extractions e JOIN sources s ON s.id = e.source_id\nWHERE e.status = 'pending_review'\nORDER BY s.provenance = 'expert' DESC, e.confidence ASC LIMIT 50",
+        "options": {}
+      },
+      "id": "a603b217-92c4-576c-aa93-32d979548c76",
+      "name": "Load Review Queue",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        240,
+        540
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// MVP: one card per extraction — fields on the left, source text with quotes highlighted on the right,\n// buttons POST to /webhook/ai4sg/review/decision. (Full page template to be filled in the build step.)\nconst rows = $input.all().map(i => i.json).filter(r => r.id);\nreturn [{ json: { contentType: 'text/html; charset=utf-8', body: `<!doctype html><title>AI4SG Audit</title><pre>${rows.length} items pending review</pre>` } }];\n"
+      },
+      "id": "03eb8726-c655-5fdf-aef4-00737a0ccba4",
+      "name": "Render Audit Page",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.body }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "={{ $json.contentType }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "31c052c5-87c2-5235-a0a9-e6b82d521429",
+      "name": "Respond Page",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 🧑‍🔬 F · Review decision: POST /webhook/ai4sg/review/decision",
+        "width": 1180,
+        "height": 230,
+        "color": 4
+      },
+      "id": "e99db0a9-22ea-529a-9a46-3d670f0a2b66",
+      "name": "Hook F",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        730
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai4sg/review/decision",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "6ea0f0bd-4aa4-5ca4-a8cc-fc273dd5711d",
+      "name": "Review Decision",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        810
+      ],
+      "webhookId": "4e466032-2f68-53c2-907e-2e1c9ce276f4"
+    },
+    {
+      "parameters": {
+        "jsCode": "// body: {extraction_id, decision: approve|edit|reject, corrections: {field: new_value}, reason, reviewer}\nconst b = $input.first().json.body || {};\nif (!['approve', 'edit', 'reject'].includes(b.decision) || !b.extraction_id || !b.reviewer) throw new Error('invalid decision payload');\nreturn [{ json: { ...b, corrections: b.corrections || {} } }];\n"
+      },
+      "id": "cb7a382e-5976-5571-86d3-4864f65d8196",
+      "name": "Validate Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        810
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH r AS (\n  INSERT INTO reviews (extraction_id, reviewer, decision, corrections, reason)\n  VALUES ($1, $2, $3, $4::jsonb, $5) RETURNING extraction_id)\nUPDATE extractions SET status = CASE $3 WHEN 'reject' THEN 'rejected' ELSE 'approved' END,\n       final_fields = CASE $3 WHEN 'reject' THEN NULL ELSE fields || $4::jsonb END, reviewed_at = now()\nWHERE id = (SELECT extraction_id FROM r)",
+        "options": {
+          "queryReplacement": "={{ [ $json.extraction_id, $json.reviewer, $json.decision, JSON.stringify($json.corrections), $json.reason ] }}"
+        }
+      },
+      "id": "660f20a9-d54a-5ffa-844c-175d624f76d2",
+      "name": "Save Review",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        480,
+        810
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={\"ok\":true}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "0cf10e1a-cb8f-5420-bcae-8257d72cb7e9",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        810
+      ]
+    }
+  ],
+  "connections": {
+    "Expert · Submit Source": {
+      "main": [
+        [
+          {
+            "node": "Normalize Submission",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Submission": {
+      "main": [
+        [
+          {
+            "node": "Enqueue (priority)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enqueue (priority)": {
+      "main": [
+        [
+          {
+            "node": "Start Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Extraction": {
+      "main": [
+        [
+          {
+            "node": "Thank-you Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expert · Manual Extraction": {
+      "main": [
+        [
+          {
+            "node": "Map to Extraction Schema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map to Extraction Schema": {
+      "main": [
+        [
+          {
+            "node": "Save Gold Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Gold Extraction": {
+      "main": [
+        [
+          {
+            "node": "Run AI on Same Source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run AI on Same Source": {
+      "main": [
+        [
+          {
+            "node": "Thanks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Page": {
+      "main": [
+        [
+          {
+            "node": "Load Review Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Review Queue": {
+      "main": [
+        [
+          {
+            "node": "Render Audit Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Audit Page": {
+      "main": [
+        [
+          {
+            "node": "Respond Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Review Decision": {
+      "main": [
+        [
+          {
+            "node": "Validate Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Decision": {
+      "main": [
+        [
+          {
+            "node": "Save Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Review": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Singapore"
+  },
+  "tags": []
+}

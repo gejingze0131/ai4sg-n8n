@@ -1,0 +1,645 @@
+{
+  "id": "ai4sgExtract0001",
+  "name": "AI4SG · C Extract & Interpretation",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## C · Extract & Interpretation (runs the Extraction Skill)\nCalled once per new source. Fetches the full text (PDF or web page), then two AI steps:\n**1 · Relevance Screen (GPT-6 Luna, cheap):** applies the Search Skill's definition of AI for Social Good. Sources that are not AI4SG, or below the threshold chosen on the run page (*Relevance screen*), are saved as *filtered out* and never reach the experts.\n**2 · Extract & Interpret (GPT-6 Sol):** only for sources that pass. Follows the Extraction Skill and the experts' worked examples; every field cites the source (original + English); **Verify Evidence** checks each quote occurs in the text. Saved as *pending review* for the audit page.",
+        "width": 3000,
+        "height": 170
+      },
+      "id": "4f1b95ec-5e2c-59ae-94ab-f52b5b9cac33",
+      "name": "Note · title",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -520
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 🧑‍🔬 Skills in\n`skills/search/SKILL.md`: definition of AI4SG, used by the relevance screen.\n\n`skills/extraction/SKILL.md`: field definitions and interpretation rules (the experts' focus and priors, e.g. cost and benefit).\n\n`skills/extraction/examples/*.md`: extractions the experts made by hand, used as worked examples in the prompt.",
+        "width": 500,
+        "height": 440,
+        "color": 4
+      },
+      "id": "98d29447-9ee9-5ea9-aadc-e691e4ffaefb",
+      "name": "Skill in",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Fetch full text\nDownload the source; PDFs (government and conference reports) go through PDF text extraction, web pages through HTML extraction. The text is kept so quotes can be verified.",
+        "width": 700,
+        "height": 440,
+        "color": 7
+      },
+      "id": "9aa8754a-0b02-53a9-b2c8-cd75ad38228f",
+      "name": "Fetch",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        760,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "source_id"
+            },
+            {
+              "name": "url"
+            },
+            {
+              "name": "format"
+            },
+            {
+              "name": "country"
+            },
+            {
+              "name": "language"
+            },
+            {
+              "name": "min_relevance"
+            }
+          ]
+        }
+      },
+      "id": "803391e9-4adf-5c80-a346-2a9287e2847d",
+      "name": "Source to Process",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "/skills/{search,extraction}/**/*.md",
+        "options": {}
+      },
+      "id": "87db3a1c-271c-5644-8460-3fef0efbbec5",
+      "name": "Load Skills + Examples",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        240,
+        40
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {}
+      },
+      "id": "612b2e90-6268-5406-873d-9d0613fcece7",
+      "name": "Files to Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        460,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Source to Process').first().json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "379c4521-ffc1-5afd-aaca-f4e7994cef2e",
+      "name": "Download",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        40
+      ],
+      "executeOnce": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "pdf",
+              "leftValue": "={{ $binary.data?.mimeType || '' }}",
+              "rightValue": "pdf",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "467d23df-e8ab-5d4b-80b9-84a81f5659c2",
+      "name": "PDF?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1020,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "6131ffb0-6eb5-511b-bde2-1cf962cc31ad",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1240,
+        -60
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "sourceData": "binary",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "text",
+              "cssSelector": "article, main, body",
+              "returnValue": "text"
+            }
+          ]
+        },
+        "options": {
+          "trimValues": true,
+          "cleanUpText": false
+        }
+      },
+      "id": "1d4383f3-264f-5c83-a014-51bee2ac59e9",
+      "name": "Extract HTML Text",
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        1240,
+        140
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Search Skill (definition of AI4SG) for the screen; Extraction Skill + expert examples for the full read\nconst files = $('Load Skills + Examples').all();\nconst texts = $('Files to Text').all();\nlet searchSkill = '', skill = '', examples = [];\ntexts.forEach((t, i) => {\n  const { fileName: name, directory: dir = '' } = files[i].binary.data;\n  if (dir.endsWith('/search') && name === 'SKILL.md') searchSkill = t.json.data;\n  else if (dir.endsWith('/extraction') && name === 'SKILL.md') skill = t.json.data;\n  else if (dir.includes('/extraction') && !name.startsWith('_')) examples.push(`### Expert example: ${name}\\n${t.json.data}`);\n});\nconst src = $('Source to Process').first().json;\nconst minRelevance = Number(src.min_relevance) || 0.6;   // \"Relevance screen\" on the run page\nconst doc = String($input.first().json.text || '').replace(/\\s+/g, ' ').trim();\nconst head = `URL: ${src.url}\\nCountry: ${src.country}\\nLanguage: ${src.language}`;\nreturn [{ json: { source_id: src.source_id, fulltext: doc, min_relevance: minRelevance,\n  screen_prompt:\n    `${searchSkill}\\n\\n## Screening task\\nYou are screening ONE source before the experts' detailed review. Using the definition in ` +\n    `\"What counts as AI for Social Good\" above, decide whether this source describes a concrete AI system, project, evaluation or policy ` +\n    `whose primary purpose is a social benefit in the stated country. Generic AI news, AI policy talk without a concrete project, ` +\n    `commercial products, digitisation without a learned model, and pages that merely mention AI do not qualify.\\n` +\n    `Return: is_ai4sg (boolean), relevance (0-1: how clearly and centrally the source is about such a project), ` +\n    `reason (one English sentence), headline_en (one English sentence: who does what, max 20 words).\\n\\n## Source\\n${head}\\n\\n${doc.slice(0, 15000)}`,\n  prompt:\n    `${skill}\\n\\n## Worked examples from our experts\\n${examples.join('\\n\\n') || '(none yet)'}\\n\\n` +\n    `## Source to analyse\\n${head}\\n\\n${doc.slice(0, 60000)}` } }];\n"
+      },
+      "id": "d11ae1c4-08ee-5627-bf91-b6660fc53b61",
+      "name": "Compose Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.screen_prompt }}",
+        "hasOutputParser": true
+      },
+      "id": "e04fe8d6-30b4-56af-92e1-9a309906edff",
+      "name": "Relevance Screen",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        1800,
+        40
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "gpt-6-luna"
+        },
+        "options": {
+          "reasoningEffort": "low",
+          "timeout": 180000
+        }
+      },
+      "id": "e0610b67-c689-536e-98d7-92b4d3bb264e",
+      "name": "LLM (Luna)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1720,
+        280
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "ai4sgOpenAiApi01",
+          "name": "AI4SG LLM (OpenAI-compatible)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"required\": [\n    \"is_ai4sg\",\n    \"relevance\",\n    \"reason\",\n    \"headline_en\"\n  ],\n  \"properties\": {\n    \"is_ai4sg\": {\n      \"type\": \"boolean\"\n    },\n    \"relevance\": {\n      \"type\": \"number\"\n    },\n    \"reason\": {\n      \"type\": \"string\"\n    },\n    \"headline_en\": {\n      \"type\": \"string\"\n    }\n  }\n}"
+      },
+      "id": "13063a08-c87b-59bb-b0fa-d755d4ccdd6d",
+      "name": "Screen Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1880,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "rel",
+              "leftValue": "={{ $json.output?.is_ai4sg === true && ($json.output?.relevance ?? 0) >= $('Compose Prompt').first().json.min_relevance }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "d4a0fcb5-6c8e-5cb1-9f82-5a9e22577907",
+      "name": "Worth Expert Time?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2060,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO extractions (source_id, fields, flags, confidence, status)\nVALUES ($1, $2::jsonb, '[]'::jsonb, $3, 'filtered_out')",
+        "options": {
+          "queryReplacement": "={{ [ $('Compose Prompt').first().json.source_id, JSON.stringify({ is_ai4sg: $json.output?.is_ai4sg ?? null, headline: $json.output?.headline_en || '', screen: $json.output || { error: $json.error || 'screen failed' } }), $json.output?.relevance ?? 0 ] }}"
+        }
+      },
+      "id": "c71e5fac-6414-5636-9496-1457ec1706db",
+      "name": "Save as Filtered Out",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2300,
+        -200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Compose Prompt').first().json.prompt }}",
+        "hasOutputParser": true
+      },
+      "id": "25fea26d-a1e5-58f0-88b2-776c08bd09d0",
+      "name": "Extract & Interpret",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        2300,
+        40
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "gpt-6-sol"
+        },
+        "options": {
+          "reasoningEffort": "medium",
+          "timeout": 180000
+        }
+      },
+      "id": "431f4097-d1fb-5015-9e43-665d82ca8257",
+      "name": "LLM (Sol)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        2220,
+        280
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "ai4sgOpenAiApi01",
+          "name": "AI4SG LLM (OpenAI-compatible)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"required\": [\n    \"is_ai4sg\",\n    \"headline\",\n    \"source\",\n    \"interpretation\",\n    \"evidence\"\n  ],\n  \"properties\": {\n    \"is_ai4sg\": {\n      \"type\": \"boolean\"\n    },\n    \"headline\": {\n      \"type\": \"string\",\n      \"description\": \"one English sentence, max 20 words\"\n    },\n    \"source\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"title_original\": {\n          \"type\": \"string\"\n        },\n        \"title_en\": {\n          \"type\": \"string\"\n        },\n        \"language\": {\n          \"type\": \"string\"\n        },\n        \"publisher\": {\n          \"type\": \"string\"\n        },\n        \"published\": {\n          \"type\": \"string\"\n        },\n        \"summary_en\": {\n          \"type\": \"string\"\n        }\n      }\n    },\n    \"project\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"name\": {\n          \"type\": \"string\"\n        },\n        \"implementing_org\": {\n          \"type\": \"string\"\n        },\n        \"location\": {\n          \"type\": \"string\"\n        },\n        \"domain\": {\n          \"type\": \"string\"\n        },\n        \"ai_technique\": {\n          \"type\": \"string\"\n        },\n        \"deployment_stage\": {\n          \"type\": \"string\"\n        },\n        \"target_beneficiaries\": {\n          \"type\": \"string\"\n        },\n        \"partners\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"funders\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"countries\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"evidence_refs\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"reach\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"stated\": {\n          \"type\": \"boolean\"\n        },\n        \"number\": {\n          \"type\": [\n            \"number\",\n            \"null\"\n          ]\n        },\n        \"unit\": {\n          \"type\": \"string\"\n        },\n        \"is_target\": {\n          \"type\": \"boolean\"\n        },\n        \"evidence_refs\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"cost\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"stated\": {\n          \"type\": \"boolean\"\n        },\n        \"amount\": {\n          \"type\": [\n            \"number\",\n            \"null\"\n          ]\n        },\n        \"currency\": {\n          \"type\": \"string\"\n        },\n        \"amount_as_written\": {\n          \"type\": \"string\"\n        },\n        \"what_is_covered\": {\n          \"type\": \"string\"\n        },\n        \"cost_per_beneficiary\": {\n          \"type\": [\n            \"number\",\n            \"null\"\n          ]\n        },\n        \"evidence_refs\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"benefit\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"stated\": {\n          \"type\": \"boolean\"\n        },\n        \"outcome\": {\n          \"type\": \"string\"\n        },\n        \"metric\": {\n          \"type\": \"string\"\n        },\n        \"magnitude\": {\n          \"type\": \"string\"\n        },\n        \"comparison\": {\n          \"type\": \"string\"\n        },\n        \"outputs_reported\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"evidence_refs\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"evidence_strength\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"type\": {\n          \"type\": \"string\",\n          \"enum\": [\n            \"rct\",\n            \"quasi_experimental\",\n            \"observational\",\n            \"pilot_report\",\n            \"anecdotal\",\n            \"none\"\n          ]\n        },\n        \"rationale\": {\n          \"type\": \"string\"\n        }\n      }\n    },\n    \"interpretation\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"cost_benefit\": {\n          \"type\": \"string\"\n        },\n        \"credibility\": {\n          \"type\": \"string\"\n        },\n        \"gaps\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"overall\": {\n          \"type\": \"string\"\n        }\n      }\n    },\n    \"risks_limitations\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"evidence\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"required\": [\n          \"id\",\n          \"field\",\n          \"quote_original\",\n          \"quote_en\"\n        ],\n        \"properties\": {\n          \"id\": {\n            \"type\": \"string\"\n          },\n          \"field\": {\n            \"type\": \"string\"\n          },\n          \"quote_original\": {\n            \"type\": \"string\"\n          },\n          \"quote_en\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"self_confidence\": {\n      \"type\": \"number\"\n    }\n  }\n}"
+      },
+      "id": "b8ab0220-f895-571b-8541-9e370efa72b0",
+      "name": "Extraction Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2400,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mark each quote found / not found in the source text; flag cost/benefit claims that no verified quote supports\nconst ctx = $('Compose Prompt').first().json;\nconst x = $input.first().json.output || {};\n// compare without whitespace and punctuation spacing: text extraction can drop or add spaces (e.g. after Bengali vowel signs)\nconst norm = (s) => String(s || '').normalize('NFC').replace(/[\\s\\u200b-\\u200d]+/g, '').toLowerCase();\nconst text = norm(ctx.fulltext);\nconst evidence = (x.evidence || []).map(e => ({ ...e, found: !!e.quote_original && text.includes(norm(e.quote_original).slice(0, 100)) }));\nconst supported = (block, name) => evidence.some(e => e.found && ((block?.evidence_refs || []).includes(e.id) || e.field === name));\nconst flags = [];\nif (!$input.first().json.output) flags.push('extraction_failed');\nif ((ctx.fulltext || '').length < 150) flags.push('no_text_extracted');\nif (x.cost?.stated && !supported(x.cost, 'cost')) flags.push('cost_without_evidence');\nif (x.benefit?.stated && !supported(x.benefit, 'benefit')) flags.push('benefit_without_evidence');\nif (evidence.some(e => !e.found)) flags.push('quote_not_found');\nconst verified = evidence.length ? evidence.filter(e => e.found).length / evidence.length : 0;\nreturn [{ json: { source_id: ctx.source_id, fields: $input.first().json.output ? { ...x, evidence } : null, flags,\n                  confidence: Math.round(100 * Math.min(x.self_confidence ?? 0.5, verified)) / 100 } }];\n"
+      },
+      "id": "78617feb-b7f1-5b44-b99d-e4769063f755",
+      "name": "Verify Evidence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2560,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO extractions (source_id, fields, flags, confidence, status)\nVALUES ($1, $2::jsonb, $3::jsonb, $4, CASE WHEN $2::jsonb->>'is_ai4sg' = 'false' THEN 'filtered_out' ELSE 'pending_review' END)",
+        "options": {
+          "queryReplacement": "={{ [ $json.source_id, JSON.stringify($json.fields), JSON.stringify($json.flags), $json.confidence ] }}"
+        }
+      },
+      "id": "2a5ac23f-cdd1-5617-93f3-f0ffe1d2a2b1",
+      "name": "Save for Review",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2800,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Source to Process": {
+      "main": [
+        [
+          {
+            "node": "Load Skills + Examples",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Skills + Examples": {
+      "main": [
+        [
+          {
+            "node": "Files to Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Files to Text": {
+      "main": [
+        [
+          {
+            "node": "Download",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download": {
+      "main": [
+        [
+          {
+            "node": "PDF?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDF?": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract HTML Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Compose Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract HTML Text": {
+      "main": [
+        [
+          {
+            "node": "Compose Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose Prompt": {
+      "main": [
+        [
+          {
+            "node": "Relevance Screen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Relevance Screen": {
+      "main": [
+        [
+          {
+            "node": "Worth Expert Time?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Worth Expert Time?": {
+      "main": [
+        [
+          {
+            "node": "Extract & Interpret",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save as Filtered Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract & Interpret": {
+      "main": [
+        [
+          {
+            "node": "Verify Evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Evidence": {
+      "main": [
+        [
+          {
+            "node": "Save for Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM (Luna)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Relevance Screen",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Screen Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Relevance Screen",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM (Sol)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Extract & Interpret",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraction Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Extract & Interpret",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Singapore"
+  },
+  "tags": []
+}

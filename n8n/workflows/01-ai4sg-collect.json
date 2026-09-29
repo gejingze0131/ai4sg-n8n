@@ -1,0 +1,748 @@
+{
+  "id": "ai4sgCollect0001",
+  "name": "AI4SG · Collect & Analyze",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## AI for Social Good · Collect & Analyze\nRuns daily at 09:00 (Asia/Singapore) or on **Execute workflow**.\n\n1. **Config** holds every query and the LLM switch. Edit it to change what is collected.\n2. Three sources are fetched in parallel: GitHub repositories, arXiv papers, Google News.\n3. **Dedupe & Classify** merges them, removes duplicates and tags each item with an impact domain, SDGs and region using keyword rules.\n4. Everything is upserted into the `projects` table of the `ai4sg` database.\n5. If the LLM is enabled, relevant new items are re-classified by the LLM and upserted again.\n\nDashboard: open the **AI4SG · Dashboard** workflow, or visit http://localhost:5678/webhook/ai4sg",
+        "width": 1060,
+        "height": 260
+      },
+      "id": "c44733dd-dda6-510c-ab0a-44f50baf1681",
+      "name": "Note · Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        -420
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "8a9071cb-839b-5298-a74a-d07e0fa79ed2",
+      "name": "Run manually",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "id": "af2d959e-b726-5beb-a549-ff45e9ce78b5",
+      "name": "Daily 09:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============ AI4SG collection settings: edit here ============\n// The three LLM lines are rewritten by setup.sh from .env; you can also change them by hand.\nconst LLM_ENABLED = false;\nconst LLM_BASE_URL = 'https://api.openai.com/v1';\nconst LLM_MODEL = 'gpt-4o-mini';\n\nreturn [{\n  json: {\n    runStartedAt: new Date().toISOString(),\n\n    // GitHub repository search (https://docs.github.com/en/search-github/searching-on-github/searching-for-repositories)\n    github: {\n      perPage: 30,\n      queries: [\n        'topic:ai-for-social-good',\n        'topic:ai4good',\n        'topic:ai-for-good',\n        'topic:social-good topic:machine-learning',\n        'topic:humanitarian topic:machine-learning',\n        'topic:global-health topic:machine-learning',\n        '\"AI for social good\" in:description,readme',\n      ],\n    },\n\n    // arXiv API query (https://info.arxiv.org/help/api/user-manual.html)\n    arxiv: {\n      maxResults: 60,\n      query:\n        '(abs:\"social good\" OR abs:\"social impact\" OR abs:\"sustainable development goals\" OR ' +\n        'abs:\"humanitarian\" OR abs:\"global health\" OR abs:\"low-resource settings\" OR abs:\"developing countries\") ' +\n        'AND (cat:cs.AI OR cat:cs.LG OR cat:cs.CL OR cat:cs.CV OR cat:cs.CY)',\n    },\n\n    // Google News RSS searches\n    news: {\n      queries: [\n        '\"AI for social good\"',\n        '\"AI for good\" project',\n        'artificial intelligence nonprofit launches',\n        'AI global health Africa',\n        'AI smallholder farmers',\n        'AI humanitarian response',\n      ],\n    },\n\n    llm: {\n      enabled: LLM_ENABLED,\n      baseUrl: LLM_BASE_URL.replace(/\\/+$/, ''),\n      model: LLM_MODEL,\n      maxItemsPerRun: 40, // cost guard: at most this many new items go to the LLM per run\n    },\n  },\n}];\n"
+      },
+      "id": "4129c1f1-8baf-5090-995b-7c77da6f0544",
+      "name": "Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// One HTTP request per GitHub search query\nconst cfg = $input.first().json.github;\nreturn cfg.queries.map((q) => ({\n  json: {\n    query: q,\n    url:\n      'https://api.github.com/search/repositories?q=' + encodeURIComponent(q) +\n      '&sort=updated&order=desc&per_page=' + cfg.perPage,\n  },\n}));\n"
+      },
+      "id": "69b36e2a-c7fd-56e2-ab60-cc89cae44300",
+      "name": "GitHub · Build Requests",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 7000
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "ai4sg-n8n"
+            }
+          ]
+        }
+      },
+      "id": "0db42bdb-3055-5e1e-ad8f-6a727ae1728f",
+      "name": "GitHub · Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        -100
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgGithubTok01",
+          "name": "AI4SG GitHub Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Flatten GitHub search responses into one item per repository (common schema)\nconst out = [];\nfor (const item of $input.all()) {\n  const repos = Array.isArray(item.json.items) ? item.json.items : [];\n  for (const r of repos) {\n    if (r.fork || r.archived) continue;\n    out.push({\n      json: {\n        id: 'github:' + r.id,\n        source: 'github',\n        source_id: String(r.id),\n        title: r.full_name,\n        url: r.html_url,\n        description: (r.description || '').trim(),\n        owner: r.owner && r.owner.login ? r.owner.login : null,\n        owner_type: r.owner && r.owner.type ? r.owner.type : null,\n        published_at: r.created_at || null,\n        updated_at: r.pushed_at || r.updated_at || null,\n        stars: r.stargazers_count ?? null,\n        language: r.language || null,\n        topics: Array.isArray(r.topics) ? r.topics : [],\n        homepage: r.homepage || null,\n      },\n    });\n  }\n}\nreturn out;\n"
+      },
+      "id": "6e555efc-f7e6-5b6b-8523-2f51eff9930d",
+      "name": "GitHub · Normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://export.arxiv.org/api/query",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "search_query",
+              "value": "={{ $json.arxiv.query }}"
+            },
+            {
+              "name": "sortBy",
+              "value": "submittedDate"
+            },
+            {
+              "name": "sortOrder",
+              "value": "descending"
+            },
+            {
+              "name": "max_results",
+              "value": "={{ $json.arxiv.maxResults }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "67aad863-4153-5294-b75f-fa4575611548",
+      "name": "arXiv · Fetch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the arXiv Atom feed into one item per paper (common schema)\nconst decode = (s) =>\n  (s || '')\n    .replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/g, '$1')\n    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '\"')\n    .replace(/&#39;|&apos;/g, \"'\").replace(/&amp;/g, '&')\n    .replace(/\\s+/g, ' ').trim();\nconst tag = (xml, name) => {\n  const m = xml.match(new RegExp('<' + name + '(?:\\\\s[^>]*)?>([\\\\s\\\\S]*?)</' + name + '>'));\n  return m ? decode(m[1]) : '';\n};\n\nconst out = [];\nfor (const item of $input.all()) {\n  const xml = typeof item.json.data === 'string' ? item.json.data : '';\n  const entries = xml.split('<entry>').slice(1).map((e) => e.split('</entry>')[0]);\n  for (const e of entries) {\n    const absUrl = tag(e, 'id');                       // e.g. http://arxiv.org/abs/2409.01234v2\n    const arxivId = absUrl.replace(/^.*\\/abs\\//, '').replace(/v\\d+$/, '');\n    if (!arxivId) continue;\n    const authors = [...e.matchAll(/<author>\\s*<name>([\\s\\S]*?)<\\/name>/g)].map((m) => decode(m[1]));\n    const cats = [...e.matchAll(/<category[^>]*term=\"([^\"]+)\"/g)].map((m) => m[1]);\n    out.push({\n      json: {\n        id: 'arxiv:' + arxivId,\n        source: 'arxiv',\n        source_id: arxivId,\n        title: tag(e, 'title'),\n        url: 'https://arxiv.org/abs/' + arxivId,\n        description: tag(e, 'summary'),\n        owner: authors.length > 3 ? authors.slice(0, 3).join(', ') + ' et al.' : authors.join(', '),\n        published_at: tag(e, 'published') || null,\n        stars: null,\n        language: null,\n        topics: cats,\n      },\n    });\n  }\n}\nreturn out;\n"
+      },
+      "id": "739c95a5-f5cd-51d6-a627-736efe484401",
+      "name": "arXiv · Normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// One Google News RSS request per query\nconst cfg = $input.first().json.news;\nreturn cfg.queries.map((q) => ({\n  json: {\n    query: q,\n    url: 'https://news.google.com/rss/search?q=' + encodeURIComponent(q + ' when:30d') + '&hl=en-US&gl=US&ceid=US:en',\n  },\n}));\n"
+      },
+      "id": "b447b07b-2672-5672-b817-674a698a9e6e",
+      "name": "News · Build Requests",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "outputPropertyName": "data"
+            }
+          },
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1000
+            }
+          }
+        }
+      },
+      "id": "fa8f10b3-3e27-5714-8c7e-03a6771243c6",
+      "name": "News · Fetch RSS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        300
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Google News RSS into one item per article (common schema)\nconst decode = (s) =>\n  (s || '')\n    .replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/g, '$1')\n    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '\"')\n    .replace(/&#39;|&apos;/g, \"'\").replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/\\s+/g, ' ').trim();\nconst tag = (xml, name) => {\n  const m = xml.match(new RegExp('<' + name + '(?:\\\\s[^>]*)?>([\\\\s\\\\S]*?)</' + name + '>'));\n  return m ? m[1] : '';\n};\n// small stable hash so the id survives Google's long redirect URLs\nconst hash = (s) => {\n  let h = 5381;\n  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;\n  return h.toString(36);\n};\n\nconst out = [];\nfor (const item of $input.all()) {\n  const xml = typeof item.json.data === 'string' ? item.json.data : '';\n  const entries = xml.split('<item>').slice(1).map((e) => e.split('</item>')[0]);\n  for (const e of entries) {\n    let title = decode(tag(e, 'title'));\n    const outlet = decode(tag(e, 'source'));\n    if (outlet && title.endsWith(' - ' + outlet)) title = title.slice(0, -(outlet.length + 3));\n    const link = decode(tag(e, 'link'));\n    const guid = decode(tag(e, 'guid')) || link;\n    if (!title || !link) continue;\n    const pub = decode(tag(e, 'pubDate'));\n    out.push({\n      json: {\n        id: 'news:' + hash(title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()),\n        source: 'news',\n        source_id: guid,\n        title,\n        url: link,\n        // Google News descriptions mostly repeat the headline; keep only extra text\n        description: (() => {\n          let d = decode(tag(e, 'description'));\n          if (outlet && d.endsWith(outlet)) d = d.slice(0, -outlet.length).trim();\n          if (d.startsWith(title)) d = d.slice(title.length).trim();\n          return d;\n        })(),\n        owner: outlet || null,\n        published_at: pub ? new Date(pub).toISOString() : null,\n        stars: null,\n        language: null,\n        topics: [],\n      },\n    });\n  }\n}\nreturn out;\n"
+      },
+      "id": "97330554-fc57-5fbd-b3d5-26878229cd47",
+      "name": "News · Normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "id": "6b9352c6-678e-5b8b-8ec1-7784aead6452",
+      "name": "Merge Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, analyzed_by FROM projects",
+        "options": {}
+      },
+      "id": "50a92ffa-248d-554a-a737-c4b3b6e66a2c",
+      "name": "Load Known IDs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1440,
+        100
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dedupe across sources, apply the keyword classifier, and decide which items go to the LLM.\nconst cfg = $('Config').first().json;\n\n// ---------- taxonomy: impact domain -> keywords + SDGs ----------\nconst DOMAINS = {\n  global_health: { sdgs: [3], kw: ['health', 'medical', 'clinic', 'disease', 'malaria', 'tuberculosis', 'hiv', 'polio', 'vaccin', 'maternal', 'neonatal', 'newborn', 'diagnos', 'epidemi', 'pandemic', 'covid', 'malnutrition', 'nutrition', 'mental health', 'radiolog', 'patient', 'hospital'] },\n  agriculture_food: { sdgs: [2], kw: ['agricultur', 'crop', 'farm', 'food security', 'famine', 'livestock', 'soil', 'harvest', 'smallholder', 'pest', 'yield'] },\n  education: { sdgs: [4], kw: ['education', 'learning outcome', 'student', 'teacher', 'school', 'literacy', 'tutor', 'classroom'] },\n  financial_inclusion: { sdgs: [1, 8], kw: ['financial inclusion', 'microfinance', 'mobile money', 'poverty', 'cash transfer', 'unbanked', 'credit scor', 'livelihood', 'informal econom'] },\n  gender_equality: { sdgs: [5], kw: ['gender', 'women', 'girls', 'female', 'gender-based violence'] },\n  water_sanitation: { sdgs: [6], kw: ['water', 'sanitation', 'hygiene', 'wash '] },\n  climate_environment: { sdgs: [13, 15], kw: ['climate', 'carbon', 'emission', 'deforest', 'wildlife', 'biodiversity', 'conservation', 'ocean', 'air quality', 'pollution', 'renewable', 'energy access', 'poaching'] },\n  disaster_humanitarian: { sdgs: [11, 16], kw: ['disaster', 'humanitarian', 'refugee', 'flood', 'earthquake', 'wildfire', 'crisis', 'emergency response', 'cyclone', 'drought', 'displacement'] },\n  accessibility: { sdgs: [10], kw: ['accessib', 'disabilit', 'blind', 'visually impaired', 'deaf', 'sign language', 'assistive'] },\n  governance_rights: { sdgs: [16], kw: ['misinformation', 'disinformation', 'human rights', 'justice', 'corruption', 'democracy', 'hate speech', 'public sector', 'civic'] },\n};\nconst SOCIAL_KW = ['social good', 'for good', 'social impact', 'humanitarian', 'sustainable development', 'sdg', 'nonprofit', 'non-profit', 'ngo', 'low-resource', 'low resource', 'developing countr', 'global south', 'lmic', 'underserved', 'marginali', 'vulnerable', 'public good', 'philanthrop'];\nconst AI_KW = ['artificial intelligence', ' ai ', 'ai-', ' ai,', 'ai4', 'machine learning', 'deep learning', 'neural', 'llm', 'large language model', 'computer vision', 'nlp', 'natural language', 'data science', 'predictive model', 'transformer', 'reinforcement learning', 'chatbot', 'generative'];\nconst REGIONS = {\n  'Sub-Saharan Africa': ['africa', 'kenya', 'nigeria', 'ethiopia', 'ghana', 'uganda', 'tanzania', 'rwanda', 'malawi', 'zambia', 'senegal', 'mozambique', 'zimbabwe', 'sahel'],\n  'South Asia': ['india', 'bangladesh', 'pakistan', 'nepal', 'sri lanka', 'south asia'],\n  'Southeast Asia': ['indonesia', 'philippines', 'vietnam', 'thailand', 'myanmar', 'cambodia', 'malaysia', 'singapore', 'southeast asia'],\n  'Latin America': ['latin america', 'brazil', 'mexico', 'peru', 'colombia', 'chile', 'argentina', 'guatemala'],\n  'Middle East & N. Africa': ['middle east', 'egypt', 'jordan', 'syria', 'yemen', 'morocco', 'lebanon'],\n};\n\nconst count = (text, list) => list.reduce((n, k) => n + (text.includes(k) ? 1 : 0), 0);\n\nfunction classify(it) {\n  const text = (' ' + [it.title, it.description, (it.topics || []).join(' ')].join(' ') + ' ').toLowerCase();\n  const scores = Object.entries(DOMAINS)\n    .map(([name, d]) => [name, count(text, d.kw)])\n    .sort((a, b) => b[1] - a[1]);\n  const domain = scores[0][1] > 0 ? scores[0][0] : 'general';\n  const sdgs = [...new Set(scores.filter(([, s]) => s > 0).slice(0, 2).flatMap(([n]) => DOMAINS[n].sdgs))].sort((a, b) => a - b);\n  const region = Object.entries(REGIONS).find(([, kws]) => kws.some((k) => text.includes(k)))?.[0] || 'Global / unspecified';\n\n  const social = count(text, SOCIAL_KW);\n  const ai = count(text, AI_KW) + (it.source === 'arxiv' ? 1 : 0); // arXiv query is already restricted to AI categories\n  const topicHit = (it.topics || []).some((t) => /ai-?for-?(social-)?good|ai4good|social-good/.test(t));\n  let relevance = Math.min(1, 0.15 * social + 0.1 * ai + 0.1 * Math.min(scores[0][1], 3) + (topicHit ? 0.4 : 0));\n  relevance = Math.round(relevance * 100) / 100;\n  // relevant = tagged AI4SG on GitHub, or mentions AI together with a social-good term or an impact domain\n  const is_relevant = topicHit || (ai > 0 && (social > 0 || scores[0][1] > 0));\n\n  const owner = (it.owner || '').toLowerCase();\n  let org_type = 'unknown';\n  if (it.source === 'arxiv' || /universit|college|institute|lab\\b|\\.edu/.test(owner)) org_type = 'academic';\n  else if (/foundation|\\.org|ngo|unicef|who\\b|undp|unhcr|red cross|nonprofit/.test(owner)) org_type = 'nonprofit';\n  else if (/gov|ministry/.test(owner)) org_type = 'government';\n  else if (it.source === 'github' && it.owner_type === 'User') org_type = 'community';\n\n  const project_type = { github: 'open-source', arxiv: 'research', news: 'news' }[it.source] || 'other';\n  const desc = (it.description || '').replace(/\\s+/g, ' ').trim();\n  const summary = desc.length > 280 ? desc.slice(0, 277) + '…' : desc;\n  return { domain, sdgs, region, relevance, is_relevant, org_type, project_type, summary, analyzed_by: 'rules' };\n}\n\n// ---------- ids already in the database ----------\nconst known = new Map();\nfor (const row of $input.all()) if (row.json.id) known.set(row.json.id, row.json.analyzed_by);\n\n// ---------- dedupe (id, then normalised title) ----------\nconst seenIds = new Set();\nconst seenTitles = new Set();\nconst items = [];\nconst perSource = {};\nfor (const { json: it } of $('Merge Sources').all()) {\n  if (!it || !it.id || !it.title || !it.url) continue; // skips error items from failed requests\n  const titleKey = it.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();\n  if (seenIds.has(it.id) || seenTitles.has(titleKey)) continue;\n  seenIds.add(it.id);\n  seenTitles.add(titleKey);\n  perSource[it.source] = (perSource[it.source] || 0) + 1;\n  items.push({ ...it, ...classify(it), is_new: !known.has(it.id) });\n}\n\n// ---------- LLM selection: relevant-looking items not yet analysed by the LLM ----------\nif (cfg.llm.enabled) {\n  items\n    .filter((it) => known.get(it.id) !== 'llm' && (it.is_relevant || it.relevance >= 0.2))\n    .sort((a, b) => b.relevance - a.relevance)\n    .slice(0, cfg.llm.maxItemsPerRun)\n    .forEach((it) => { it.needs_llm = true; });\n}\nfor (const it of items) it.needs_llm = !!it.needs_llm;\n\nreturn items.map((json) => ({ json }));\n"
+      },
+      "id": "2f337421-8600-54f8-b820-8ac3dcc693d0",
+      "name": "Dedupe & Classify",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pack all items into one JSON payload so a single SQL statement can upsert them\nconst rows = $input.all().map(({ json: it }) => ({\n  id: it.id,\n  source: it.source,\n  source_id: it.source_id,\n  title: (it.title || '').slice(0, 500),\n  url: it.url,\n  description: (it.description || '').slice(0, 5000),\n  owner: it.owner,\n  published_at: it.published_at,\n  stars: it.stars,\n  language: it.language,\n  topics: it.topics || [],\n  project_type: it.project_type,\n  domain: it.domain,\n  sdgs: it.sdgs || [],\n  region: it.region,\n  org_type: it.org_type,\n  summary: it.summary,\n  relevance: it.relevance,\n  is_relevant: !!it.is_relevant,\n  analyzed_by: it.analyzed_by || 'rules',\n}));\nconst bySource = rows.reduce((m, r) => ((m[r.source] = (m[r.source] || 0) + 1), m), {});\nreturn [{\n  json: {\n    rows: JSON.stringify(rows),\n    count: rows.length,\n    new_items: $input.all().filter((i) => i.json.is_new).length,\n    relevant: rows.filter((r) => r.is_relevant).length,\n    llm_planned: $input.all().filter((i) => i.json.needs_llm).length,\n    per_source: JSON.stringify(bySource),\n  },\n}];\n"
+      },
+      "id": "07555764-fc53-52a0-afd4-51a579c6b6a0",
+      "name": "Prepare Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO projects AS p (id, source, source_id, title, url, description, owner, published_at, stars, language,\n                           topics, project_type, domain, sdgs, region, org_type, summary, relevance, is_relevant, analyzed_by)\nSELECT id, source, source_id, title, url, description, owner, published_at, stars, language,\n       coalesce(topics, '[]'), project_type, domain, coalesce(sdgs, '[]'), region, org_type, summary, relevance,\n       coalesce(is_relevant, false), coalesce(analyzed_by, 'rules')\nFROM jsonb_to_recordset($1::jsonb) AS r(\n    id text, source text, source_id text, title text, url text, description text, owner text,\n    published_at timestamptz, stars int, language text, topics jsonb, project_type text, domain text,\n    sdgs jsonb, region text, org_type text, summary text, relevance real, is_relevant boolean, analyzed_by text)\nON CONFLICT (id) DO UPDATE SET\n    title       = EXCLUDED.title,\n    url         = EXCLUDED.url,\n    description = EXCLUDED.description,\n    stars       = EXCLUDED.stars,\n    topics      = EXCLUDED.topics,\n    last_seen   = now(),\n    -- an LLM classification is never overwritten by a later keyword classification\n    domain      = CASE WHEN p.analyzed_by = 'llm' AND EXCLUDED.analyzed_by = 'rules' THEN p.domain      ELSE EXCLUDED.domain      END,\n    sdgs        = CASE WHEN p.analyzed_by = 'llm' AND EXCLUDED.analyzed_by = 'rules' THEN p.sdgs        ELSE EXCLUDED.sdgs        END,\n    region      = CASE WHEN p.analyzed_by = 'llm' AND EXCLUDED.analyzed_by = 'rules' THEN p.region      ELSE EXCLUDED.region      END,\n    org_type    = CASE WHEN p.analyzed_by = 'llm' AND EXCLUDED.analyzed_by = 'rules' THEN p.org_type    ELSE EXCLUDED.org_type    END,\n    summary     = CASE WHEN p.analyzed_by = 'llm' AND EXCLUDED.analyzed_by = 'rules' THEN p.summary     ELSE EXCLUDED.summary     END,\n    relevance   = CASE WHEN p.analyzed_by = 'llm' AND EXCLUDED.analyzed_by = 'rules' THEN p.relevance   ELSE EXCLUDED.relevance   END,\n    is_relevant = CASE WHEN p.analyzed_by = 'llm' AND EXCLUDED.analyzed_by = 'rules' THEN p.is_relevant ELSE EXCLUDED.is_relevant END,\n    analyzed_by = CASE WHEN p.analyzed_by = 'llm' THEN 'llm' ELSE EXCLUDED.analyzed_by END;\n",
+        "options": {
+          "queryReplacement": "={{ [$json.rows] }}"
+        }
+      },
+      "id": "09700f65-0ed4-538f-87d6-d73529362d6a",
+      "name": "Upsert Projects",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2160,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO collection_runs (fetched, new_items, relevant, llm_analyzed, per_source) VALUES ($1, $2, $3, $4, $5::jsonb)",
+        "options": {
+          "queryReplacement": "={{ [$('Prepare Rows').first().json.count, $('Prepare Rows').first().json.new_items, $('Prepare Rows').first().json.relevant, $('Prepare Rows').first().json.llm_planned, $('Prepare Rows').first().json.per_source] }}"
+        }
+      },
+      "id": "81d78836-d73e-5755-9ff8-93d673d9aaa9",
+      "name": "Log Run",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2400,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "needs-llm",
+              "leftValue": "={{ $json.needs_llm }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "2c1429e0-7ca4-5a67-9737-72d993237eb8",
+      "name": "Needs LLM?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        1920,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build one OpenAI-compatible chat request per item\nconst cfg = $('Config').first().json.llm;\nconst SYSTEM = `You are an analyst cataloguing \"AI for Social Good\" projects for a philanthropic foundation.\nGiven one item (GitHub repo, arXiv paper, or news article), return ONLY a JSON object with these keys:\n- \"is_relevant\": true only if the item describes an AI/ML/data-science project, tool, study or deployment whose primary aim is social benefit (health, poverty, food, education, climate, humanitarian, inclusion, rights...). Generic AI news, commercial products without a social mission, or courses/tutorials are false.\n- \"domain\": one of [\"global_health\",\"agriculture_food\",\"education\",\"financial_inclusion\",\"gender_equality\",\"water_sanitation\",\"climate_environment\",\"disaster_humanitarian\",\"accessibility\",\"governance_rights\",\"general\"]\n- \"sdgs\": array of UN SDG numbers (1-17), most relevant first, at most 3\n- \"region\": one of [\"Sub-Saharan Africa\",\"South Asia\",\"Southeast Asia\",\"Latin America\",\"Middle East & N. Africa\",\"Global / unspecified\",\"High-income countries\"]\n- \"org_type\": one of [\"academic\",\"nonprofit\",\"company\",\"government\",\"community\",\"unknown\"]\n- \"summary\": one English sentence (max 40 words): who does what with which AI technique, for whom\n- \"relevance\": number 0-1, how central social impact is to the item`;\n\nreturn $input.all().map(({ json: it }) => ({\n  json: {\n    ...it,\n    llm_request: {\n      model: cfg.model,\n      temperature: 0,\n      response_format: { type: 'json_object' },\n      messages: [\n        { role: 'system', content: SYSTEM },\n        {\n          role: 'user',\n          content: JSON.stringify({\n            source: it.source,\n            title: it.title,\n            description: (it.description || '').slice(0, 2500),\n            owner: it.owner,\n            topics: it.topics,\n          }),\n        },\n      ],\n    },\n  },\n}));\n"
+      },
+      "id": "bd30cb45-abdc-5f75-b369-43dbdb29f7cf",
+      "name": "LLM · Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.llm.baseUrl }}/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.llm_request) }}",
+        "options": {
+          "timeout": 90000,
+          "batching": {
+            "batch": {
+              "batchSize": 4,
+              "batchInterval": 1000
+            }
+          }
+        }
+      },
+      "id": "20b60b8d-eb92-50fa-893a-7e0bfe5acc77",
+      "name": "LLM · Analyze",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        260
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgLlmApiKey01",
+          "name": "AI4SG LLM API Key"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge the LLM answer back onto each item; keep the keyword result when the call or parsing failed\nconst originals = $('LLM · Build Prompt').all();\nconst DOMAINS = ['global_health', 'agriculture_food', 'education', 'financial_inclusion', 'gender_equality', 'water_sanitation', 'climate_environment', 'disaster_humanitarian', 'accessibility', 'governance_rights', 'general'];\nconst ORG = ['academic', 'nonprofit', 'company', 'government', 'community', 'unknown'];\n\nreturn $input.all().map((res, i) => {\n  const { llm_request, ...it } = originals[i].json;\n  try {\n    let content = res.json.choices?.[0]?.message?.content;\n    if (!content) throw new Error(res.json.error?.message || 'empty LLM response');\n    content = content.replace(/^```(?:json)?\\s*|\\s*```$/g, '');\n    const a = JSON.parse(content);\n    return {\n      json: {\n        ...it,\n        is_relevant: a.is_relevant === true,\n        domain: DOMAINS.includes(a.domain) ? a.domain : it.domain,\n        sdgs: Array.isArray(a.sdgs) ? a.sdgs.map(Number).filter((n) => n >= 1 && n <= 17).slice(0, 3) : it.sdgs,\n        region: typeof a.region === 'string' && a.region ? a.region : it.region,\n        org_type: ORG.includes(a.org_type) ? a.org_type : it.org_type,\n        summary: typeof a.summary === 'string' && a.summary ? a.summary : it.summary,\n        relevance: typeof a.relevance === 'number' ? Math.max(0, Math.min(1, a.relevance)) : it.relevance,\n        analyzed_by: 'llm',\n      },\n    };\n  } catch (e) {\n    return { json: { ...it, llm_error: String(e.message || e) } };\n  }\n});\n"
+      },
+      "id": "9d571922-994f-5a0f-89bc-cb81540fda9c",
+      "name": "LLM · Apply Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pack all items into one JSON payload so a single SQL statement can upsert them\nconst rows = $input.all().map(({ json: it }) => ({\n  id: it.id,\n  source: it.source,\n  source_id: it.source_id,\n  title: (it.title || '').slice(0, 500),\n  url: it.url,\n  description: (it.description || '').slice(0, 5000),\n  owner: it.owner,\n  published_at: it.published_at,\n  stars: it.stars,\n  language: it.language,\n  topics: it.topics || [],\n  project_type: it.project_type,\n  domain: it.domain,\n  sdgs: it.sdgs || [],\n  region: it.region,\n  org_type: it.org_type,\n  summary: it.summary,\n  relevance: it.relevance,\n  is_relevant: !!it.is_relevant,\n  analyzed_by: it.analyzed_by || 'rules',\n}));\nconst bySource = rows.reduce((m, r) => ((m[r.source] = (m[r.source] || 0) + 1), m), {});\nreturn [{\n  json: {\n    rows: JSON.stringify(rows),\n    count: rows.length,\n    new_items: $input.all().filter((i) => i.json.is_new).length,\n    relevant: rows.filter((r) => r.is_relevant).length,\n    llm_planned: $input.all().filter((i) => i.json.needs_llm).length,\n    per_source: JSON.stringify(bySource),\n  },\n}];\n"
+      },
+      "id": "2c0987c3-aaab-5e63-ac49-037f2eb7b061",
+      "name": "Prepare Rows (LLM)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO projects AS p (id, source, source_id, title, url, description, owner, published_at, stars, language,\n                           topics, project_type, domain, sdgs, region, org_type, summary, relevance, is_relevant, analyzed_by)\nSELECT id, source, source_id, title, url, description, owner, published_at, stars, language,\n       coalesce(topics, '[]'), project_type, domain, coalesce(sdgs, '[]'), region, org_type, summary, relevance,\n       coalesce(is_relevant, false), coalesce(analyzed_by, 'rules')\nFROM jsonb_to_recordset($1::jsonb) AS r(\n    id text, source text, source_id text, title text, url text, description text, owner text,\n    published_at timestamptz, stars int, language text, topics jsonb, project_type text, domain text,\n    sdgs jsonb, region text, org_type text, summary text, relevance real, is_relevant boolean, analyzed_by text)\nON CONFLICT (id) DO UPDATE SET\n    title       = EXCLUDED.title,\n    url         = EXCLUDED.url,\n    description = EXCLUDED.description,\n    stars       = EXCLUDED.stars,\n    topics      = EXCLUDED.topics,\n    last_seen   = now(),\n    -- an LLM classification is never overwritten by a later keyword classification\n    domain      = CASE WHEN p.analyzed_by = 'llm' AND EXCLUDED.analyzed_by = 'rules' THEN p.domain      ELSE EXCLUDED.domain      END,\n    sdgs        = CASE WHEN p.analyzed_by = 'llm' AND EXCLUDED.analyzed_by = 'rules' THEN p.sdgs        ELSE EXCLUDED.sdgs        END,\n    region      = CASE WHEN p.analyzed_by = 'llm' AND EXCLUDED.analyzed_by = 'rules' THEN p.region      ELSE EXCLUDED.region      END,\n    org_type    = CASE WHEN p.analyzed_by = 'llm' AND EXCLUDED.analyzed_by = 'rules' THEN p.org_type    ELSE EXCLUDED.org_type    END,\n    summary     = CASE WHEN p.analyzed_by = 'llm' AND EXCLUDED.analyzed_by = 'rules' THEN p.summary     ELSE EXCLUDED.summary     END,\n    relevance   = CASE WHEN p.analyzed_by = 'llm' AND EXCLUDED.analyzed_by = 'rules' THEN p.relevance   ELSE EXCLUDED.relevance   END,\n    is_relevant = CASE WHEN p.analyzed_by = 'llm' AND EXCLUDED.analyzed_by = 'rules' THEN p.is_relevant ELSE EXCLUDED.is_relevant END,\n    analyzed_by = CASE WHEN p.analyzed_by = 'llm' THEN 'llm' ELSE EXCLUDED.analyzed_by END;\n",
+        "options": {
+          "queryReplacement": "={{ [$json.rows] }}"
+        }
+      },
+      "id": "1a3cc46a-0815-5919-b58d-fbc714a1382a",
+      "name": "Upsert Projects (LLM)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3120,
+        260
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Run manually": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily 09:00": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "GitHub · Build Requests",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "arXiv · Fetch",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "News · Build Requests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub · Build Requests": {
+      "main": [
+        [
+          {
+            "node": "GitHub · Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub · Search": {
+      "main": [
+        [
+          {
+            "node": "GitHub · Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "arXiv · Fetch": {
+      "main": [
+        [
+          {
+            "node": "arXiv · Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "News · Build Requests": {
+      "main": [
+        [
+          {
+            "node": "News · Fetch RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "News · Fetch RSS": {
+      "main": [
+        [
+          {
+            "node": "News · Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub · Normalize": {
+      "main": [
+        [
+          {
+            "node": "Merge Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "arXiv · Normalize": {
+      "main": [
+        [
+          {
+            "node": "Merge Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "News · Normalize": {
+      "main": [
+        [
+          {
+            "node": "Merge Sources",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge Sources": {
+      "main": [
+        [
+          {
+            "node": "Load Known IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Known IDs": {
+      "main": [
+        [
+          {
+            "node": "Dedupe & Classify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedupe & Classify": {
+      "main": [
+        [
+          {
+            "node": "Prepare Rows",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Needs LLM?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Rows": {
+      "main": [
+        [
+          {
+            "node": "Upsert Projects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Projects": {
+      "main": [
+        [
+          {
+            "node": "Log Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs LLM?": {
+      "main": [
+        [
+          {
+            "node": "LLM · Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM · Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "LLM · Analyze",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM · Analyze": {
+      "main": [
+        [
+          {
+            "node": "LLM · Apply Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM · Apply Result": {
+      "main": [
+        [
+          {
+            "node": "Prepare Rows (LLM)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Rows (LLM)": {
+      "main": [
+        [
+          {
+            "node": "Upsert Projects (LLM)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Singapore",
+    "saveManualExecutions": true
+  },
+  "tags": []
+}

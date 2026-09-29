@@ -1,0 +1,105 @@
+# AI for Social Good · n8n self-hosted stack
+# Based on the official n8n-io/n8n-hosting "withPostgres" example (n8n 2.x, external task runners).
+#   docker compose up -d                 -> n8n + Postgres + task runner
+#   docker compose --profile bi up -d    -> additionally starts Metabase for ad-hoc BI on the ai4sg DB
+
+volumes:
+  db_storage:
+  n8n_storage:
+  metabase_storage:
+
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - POSTGRES_DB
+      - POSTGRES_NON_ROOT_USER
+      - POSTGRES_NON_ROOT_PASSWORD
+      - AI4SG_DB
+      # postgres:18 moved its default data dir; pinning keeps the volume mount stable.
+      - PGDATA=/var/lib/postgresql/data
+      - TZ=${GENERIC_TIMEZONE}
+    volumes:
+      - db_storage:/var/lib/postgresql/data
+      - ./db/init-data.sh:/docker-entrypoint-initdb.d/init-data.sh:ro
+      # mount the folder, not single files: a single-file mount keeps showing the old version after the file is replaced
+      - ./db:/schema:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h localhost -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      # first start initialises the database and runs db/init-data.sh; give it time before counting failures
+      start_period: 90s
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:${N8N_VERSION}
+    restart: unless-stopped
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
+      - DB_POSTGRESDB_USER=${POSTGRES_NON_ROOT_USER}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_NON_ROOT_PASSWORD}
+      # Encrypts stored credentials. Back it up: losing it makes saved credentials unreadable.
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=${N8N_PROTOCOL}
+      # the address people use; ./share.sh sets PUBLIC_URL when this Mac is shared through Tailscale Funnel
+      - WEBHOOK_URL=${PUBLIC_URL:-http://localhost:5678/}
+      - N8N_EDITOR_BASE_URL=${PUBLIC_URL:-http://localhost:5678/}
+      # requests arrive through one proxy (Tailscale Funnel) when shared
+      - N8N_PROXY_HOPS=1
+      - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE}
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
+      - TZ=${GENERIC_TIMEZONE}
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_PERSONALIZATION_ENABLED=false
+      # Keep 14 days of execution history, then prune
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=336
+      # n8n 2.x: Code nodes run in the separate task-runner container below
+      - N8N_RUNNERS_MODE=external
+      - N8N_RUNNERS_AUTH_TOKEN=${RUNNERS_AUTH_TOKEN}
+      - N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0
+      # n8n 2.x only reads files from this list: the experts' skills and the audit page template
+      - N8N_RESTRICT_FILE_ACCESS_TO=/skills;/import/audit
+    ports:
+      # Bound to localhost only. Put a reverse proxy (Caddy/Nginx + HTTPS) in front before exposing it.
+      - 127.0.0.1:5678:5678
+    volumes:
+      - n8n_storage:/home/node/.n8n
+      - ./n8n:/import:ro
+      - ./skills:/skills:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  n8n-runner:
+    image: n8nio/runners:${N8N_VERSION}
+    restart: unless-stopped
+    environment:
+      - N8N_RUNNERS_AUTH_TOKEN=${RUNNERS_AUTH_TOKEN}
+      - N8N_RUNNERS_TASK_BROKER_URI=http://n8n:5679
+    depends_on:
+      - n8n
+
+  # Optional BI layer: docker compose --profile bi up -d  ->  http://localhost:3000
+  metabase:
+    image: metabase/metabase:latest
+    profiles: ['bi']
+    restart: unless-stopped
+    environment:
+      - MB_DB_FILE=/metabase-data/metabase.db
+      - JAVA_TIMEZONE=${GENERIC_TIMEZONE}
+    ports:
+      - 127.0.0.1:3000:3000
+    volumes:
+      - metabase_storage:/metabase-data
+    depends_on:
+      - postgres

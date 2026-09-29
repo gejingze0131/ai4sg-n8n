@@ -1,0 +1,137 @@
+{
+  "id": "ai4sgDashboard01",
+  "name": "AI4SG · Dashboard",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## AI for Social Good · Dashboard\nServes the project radar at **http://localhost:5678/webhook/ai4sg** (needs this workflow to be published/active).\nAdd `?format=json` for the raw aggregates — handy for Metabase, Observable or a custom frontend.\nWhile editing, the test URL is /webhook-test/ai4sg.",
+        "width": 760,
+        "height": 200
+      },
+      "id": "78d900ba-ebab-5c23-9701-088b6aa25cfb",
+      "name": "Note · Dashboard",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "path": "ai4sg",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "7d4eb318-7a79-5439-aa64-ff89b2ffe9a4",
+      "name": "Dashboard Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "ec9772fb-51ba-574b-8670-8561fb97771b"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH rel AS (SELECT * FROM projects WHERE is_relevant)\nSELECT json_build_object(\n  'generatedAt', now(),\n  'total',     (SELECT count(*) FROM rel),\n  'new7d',     (SELECT count(*) FROM rel WHERE first_seen > now() - interval '7 days'),\n  'llmShare',  (SELECT coalesce(round(100.0 * count(*) FILTER (WHERE analyzed_by = 'llm') / nullif(count(*), 0)), 0) FROM rel),\n  'bySource',  (SELECT coalesce(json_agg(json_build_object('k', source, 'n', n) ORDER BY n DESC), '[]')\n                FROM (SELECT source, count(*) n FROM rel GROUP BY source) s),\n  'byDomain',  (SELECT coalesce(json_agg(json_build_object('k', domain, 'n', n) ORDER BY n DESC), '[]')\n                FROM (SELECT domain, count(*) n FROM rel GROUP BY domain) s),\n  'byRegion',  (SELECT coalesce(json_agg(json_build_object('k', region, 'n', n) ORDER BY n DESC), '[]')\n                FROM (SELECT region, count(*) n FROM rel GROUP BY region) s),\n  'bySdg',     (SELECT coalesce(json_agg(json_build_object('k', sdg, 'n', n) ORDER BY sdg), '[]')\n                FROM (SELECT (jsonb_array_elements_text(sdgs))::int AS sdg, count(*) n FROM rel GROUP BY 1) s),\n  'weekly',    (SELECT coalesce(json_agg(json_build_object('week', wk, 'source', source, 'n', n) ORDER BY wk), '[]')\n                FROM (SELECT date_trunc('week', coalesce(published_at, first_seen))::date AS wk, source, count(*) n\n                      FROM rel WHERE coalesce(published_at, first_seen) > now() - interval '12 weeks'\n                      GROUP BY 1, 2) s),\n  'latest',    (SELECT coalesce(json_agg(t), '[]') FROM (\n                  SELECT id, source, title, url, owner, domain, sdgs, region, org_type, summary, stars,\n                         coalesce(published_at, first_seen) AS date, analyzed_by\n                  FROM rel ORDER BY coalesce(published_at, first_seen) DESC LIMIT 500) t),\n  'lastRun',   (SELECT row_to_json(r) FROM (SELECT * FROM collection_runs ORDER BY run_id DESC LIMIT 1) r)\n) AS data;\n",
+        "options": {}
+      },
+      "id": "63375e87-62fb-58d2-bed2-fac1698def6b",
+      "name": "Query Dashboard Data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        240,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Render the dashboard page (or raw JSON with ?format=json)\nconst data = $input.first().json.data || {};\nconst query = $('Dashboard Webhook').first().json.query || {};\nif (query.format === 'json') {\n  return [{ json: { body: JSON.stringify(data), contentType: 'application/json; charset=utf-8' } }];\n}\nconst payload = JSON.stringify(data).replace(/</g, '\\\\u003c');\n\nconst html = `<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>AI4SG Radar</title>\n<style>\n:root{color-scheme:light;--bg:#f6f6f4;--surface:#fcfcfb;--border:#e4e3df;--grid:#ecebe7;--text:#0b0b0b;--text2:#52514e;--muted:#7a7974;\n --s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--seq:#2a78d6;--seq-bg:#cde2fb;--chip:#f0efec}\n@media (prefers-color-scheme:dark){:root:not([data-theme=\"light\"]){color-scheme:dark;--bg:#121211;--surface:#1a1a19;--border:#2e2e2b;--grid:#262624;--text:#fff;--text2:#c3c2b7;--muted:#8f8e86;\n --s1:#3987e5;--s2:#d95926;--s3:#199e70;--seq:#3987e5;--seq-bg:#184f95;--chip:#383835}}\n:root[data-theme=\"dark\"]{color-scheme:dark;--bg:#121211;--surface:#1a1a19;--border:#2e2e2b;--grid:#262624;--text:#fff;--text2:#c3c2b7;--muted:#8f8e86;\n --s1:#3987e5;--s2:#d95926;--s3:#199e70;--seq:#3987e5;--seq-bg:#184f95;--chip:#383835}\n*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,\"PingFang SC\",\"Microsoft YaHei\",sans-serif}\n.wrap{max-width:1200px;margin:0 auto;padding:24px 16px 48px}\nheader{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:20px}\nh1{font-size:22px;margin:0;letter-spacing:-.01em}.sub{color:var(--text2);font-size:13px}\n.grid{display:grid;gap:16px}.kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.two{grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr))}\n.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;min-width:0}\n.card h2{font-size:13px;font-weight:600;margin:0 0 12px;color:var(--text2)}\n.kpi .v{font-size:30px;font-weight:650;letter-spacing:-.02em}.kpi .l{color:var(--text2);font-size:13px}.kpi .d{color:var(--muted);font-size:12px;margin-top:2px}\n.bars{display:flex;flex-direction:column;gap:6px}\n.bar{display:grid;grid-template-columns:minmax(90px,42%) 1fr 40px;align-items:center;gap:8px;font-size:13px;cursor:pointer;border-radius:4px;padding:1px 2px}\n.bar:hover{background:var(--chip)}.bar.on{background:var(--chip);font-weight:600}\n.bar .k{color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n.bar .t{height:14px;background:transparent}.bar .f{height:100%;background:var(--seq);border-radius:0 4px 4px 0;min-width:2px}\n.bar .n{text-align:right;font-variant-numeric:tabular-nums;color:var(--text)}\n.legend{display:flex;gap:14px;font-size:12px;color:var(--text2);margin-bottom:6px}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}\nsvg text{fill:var(--muted);font-size:11px}#tip{position:fixed;pointer-events:none;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.12);display:none;z-index:9}\n.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}\ninput,select,button{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px}\ninput{flex:1;min-width:180px}button{cursor:pointer}\n.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl th{text-align:left;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);padding:8px 6px}\n.tbl td{border-bottom:1px solid var(--grid);padding:8px 6px;vertical-align:top}.tbl a{color:var(--text);font-weight:600;text-decoration:none}.tbl a:hover{text-decoration:underline}\n.tbl .s{color:var(--text2);margin-top:2px}.chip{display:inline-block;background:var(--chip);border-radius:10px;padding:1px 8px;font-size:12px;margin:0 4px 2px 0;white-space:nowrap}\n.src{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text2)}.src i{width:8px;height:8px;border-radius:50%}\n.tscroll{overflow-x:auto}.muted{color:var(--muted)}.count{color:var(--text2);font-size:13px;margin:0 0 8px}\n@media (max-width:640px){.hide-sm{display:none}}\n</style></head><body>\n<div class=\"wrap\">\n<header><div><h1>AI for Social Good · Project Radar</h1><div class=\"sub\" id=\"meta\"></div></div>\n<div class=\"sub\"><a href=\"?format=json\" style=\"color:var(--text2)\">JSON</a></div></header>\n<section class=\"grid kpis\" id=\"kpis\"></section>\n<section class=\"grid two\" style=\"margin-top:16px\">\n  <div class=\"card\"><h2>Projects by impact domain · click to filter</h2><div class=\"bars\" id=\"domain\"></div></div>\n  <div class=\"card\"><h2>New items per week, by source (last 12 weeks)</h2><div class=\"legend\" id=\"wlegend\"></div><div id=\"weekly\"></div></div>\n  <div class=\"card\"><h2>UN SDGs addressed</h2><div class=\"bars\" id=\"sdg\"></div></div>\n  <div class=\"card\"><h2>Region</h2><div class=\"bars\" id=\"region\"></div></div>\n</section>\n<section class=\"card\" style=\"margin-top:16px\">\n  <h2>Project catalogue</h2>\n  <div class=\"filters\"><input id=\"q\" placeholder=\"Search title, summary, owner…\">\n  <select id=\"fsrc\"><option value=\"\">All sources</option></select><select id=\"fdom\"><option value=\"\">All domains</option></select>\n  <button id=\"reset\">Reset</button></div>\n  <p class=\"count\" id=\"count\"></p>\n  <div class=\"tscroll\"><table class=\"tbl\"><thead><tr><th>Project</th><th class=\"hide-sm\">Domain / SDG</th><th class=\"hide-sm\">Region</th><th>Date</th></tr></thead><tbody id=\"rows\"></tbody></table></div>\n  <div style=\"text-align:center;margin-top:12px\"><button id=\"more\" style=\"display:none\">Show more</button></div>\n</section>\n</div><div id=\"tip\"></div>\n<script>\nconst D = ${payload};\nconst SRC = {github:{label:'GitHub',v:'--s1'},arxiv:{label:'arXiv',v:'--s2'},news:{label:'News',v:'--s3'}};\nconst DOM = {global_health:'Global health',agriculture_food:'Agriculture & food',education:'Education',financial_inclusion:'Financial inclusion',gender_equality:'Gender equality',water_sanitation:'Water & sanitation',climate_environment:'Climate & environment',disaster_humanitarian:'Disaster & humanitarian',accessibility:'Accessibility',governance_rights:'Governance & rights',general:'General / other'};\nconst SDG = {1:'No poverty',2:'Zero hunger',3:'Good health',4:'Quality education',5:'Gender equality',6:'Clean water',7:'Clean energy',8:'Decent work',9:'Industry & innovation',10:'Reduced inequalities',11:'Sustainable cities',12:'Responsible consumption',13:'Climate action',14:'Life below water',15:'Life on land',16:'Peace & justice',17:'Partnerships'};\nconst $ = (id) => document.getElementById(id);\nconst esc = (s) => String(s ?? '').replace(/[&<>\"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));\nconst fmtDate = (d) => d ? new Date(d).toISOString().slice(0,10) : '';\nconst tip = $('tip');\nconst showTip = (e, html) => { tip.innerHTML = html; tip.style.display = 'block'; tip.style.left = Math.min(e.clientX + 12, innerWidth - 220) + 'px'; tip.style.top = (e.clientY + 12) + 'px'; };\nconst hideTip = () => { tip.style.display = 'none'; };\n\nconst run = D.lastRun;\n$('meta').textContent = 'Updated ' + (D.generatedAt ? new Date(D.generatedAt).toLocaleString() : '—') + (run ? ' · last collection ' + new Date(run.started_at).toLocaleString() + ' (' + run.fetched + ' fetched, ' + run.new_items + ' new)' : ' · no collection run yet');\n\nconst srcLine = (D.bySource || []).map((s) => (SRC[s.k]?.label || s.k) + ' ' + s.n).join(' · ') || '—';\n$('kpis').innerHTML = [\n  ['Relevant projects', D.total ?? 0, srcLine],\n  ['New in last 7 days', D.new7d ?? 0, 'first seen by the collector'],\n  ['Impact domains covered', (D.byDomain || []).filter((d) => d.k !== 'general').length, 'of 10 tracked domains'],\n  ['Classified by LLM', (D.llmShare ?? 0) + '%', 'the rest by keyword rules'],\n].map(([l, v, d]) => '<div class=\"card kpi\"><div class=\"l\">' + l + '</div><div class=\"v\">' + v + '</div><div class=\"d\">' + esc(d) + '</div></div>').join('');\n\nlet domFilter = '';\nfunction bars(el, list, label, onClick) {\n  const max = Math.max(1, ...list.map((x) => x.n));\n  el.innerHTML = list.length ? list.map((x) => '<div class=\"bar' + (onClick && domFilter === x.k ? ' on' : '') + '\" data-k=\"' + esc(x.k) + '\"><span class=\"k\" title=\"' + esc(label(x.k)) + '\">' + esc(label(x.k)) + '</span><span class=\"t\"><span class=\"f\" style=\"display:block;width:' + (100 * x.n / max) + '%\"></span></span><span class=\"n\">' + x.n + '</span></div>').join('') : '<div class=\"muted\">No data yet</div>';\n  el.querySelectorAll('.bar').forEach((b) => {\n    const x = list.find((i) => String(i.k) === b.dataset.k);\n    b.onmousemove = (e) => showTip(e, '<b>' + esc(label(x.k)) + '</b><br>' + x.n + ' projects');\n    b.onmouseleave = hideTip;\n    if (onClick) b.onclick = () => onClick(x.k);\n  });\n}\nconst drawDomains = () => bars($('domain'), D.byDomain || [], (k) => DOM[k] || k, (k) => { domFilter = domFilter === k ? '' : k; $('fdom').value = domFilter; drawDomains(); table(); });\ndrawDomains();\nbars($('sdg'), (D.bySdg || []).slice().sort((a, b) => b.n - a.n), (k) => 'SDG ' + k + ' · ' + (SDG[k] || ''));\nbars($('region'), D.byRegion || [], (k) => k);\n\n// weekly lines\n(function weekly() {\n  const el = $('weekly'), rows = D.weekly || [];\n  const weeks = [...new Set(rows.map((r) => r.week))].sort();\n  const srcs = Object.keys(SRC).filter((s) => rows.some((r) => r.source === s));\n  $('wlegend').innerHTML = srcs.map((s) => '<span><i style=\"background:var(' + SRC[s].v + ')\"></i>' + SRC[s].label + '</span>').join('');\n  if (!weeks.length) { el.innerHTML = '<div class=\"muted\">No data yet</div>'; return; }\n  const W = 520, H = 200, L = 32, R = 10, T = 8, B = 22;\n  const val = (s, w) => (rows.find((r) => r.source === s && r.week === w) || {}).n || 0;\n  const max = Math.max(1, ...rows.map((r) => r.n));\n  const x = (i) => L + (weeks.length === 1 ? (W - L - R) / 2 : i * (W - L - R) / (weeks.length - 1));\n  const y = (v) => T + (H - T - B) * (1 - v / max);\n  let svg = '<svg viewBox=\"0 0 ' + W + ' ' + H + '\" width=\"100%\" role=\"img\" aria-label=\"Weekly new items by source\">';\n  [0, 0.5, 1].forEach((f) => { const v = Math.round(max * f); svg += '<line x1=\"' + L + '\" x2=\"' + (W - R) + '\" y1=\"' + y(v) + '\" y2=\"' + y(v) + '\" stroke=\"var(--grid)\"/><text x=\"' + (L - 6) + '\" y=\"' + (y(v) + 4) + '\" text-anchor=\"end\">' + v + '</text>'; });\n  weeks.forEach((w, i) => { if (i % Math.ceil(weeks.length / 6) === 0) svg += '<text x=\"' + x(i) + '\" y=\"' + (H - 6) + '\" text-anchor=\"middle\">' + w.slice(5) + '</text>'; });\n  srcs.forEach((s) => {\n    svg += '<polyline fill=\"none\" stroke=\"var(' + SRC[s].v + ')\" stroke-width=\"2\" stroke-linejoin=\"round\" points=\"' + weeks.map((w, i) => x(i) + ',' + y(val(s, w))).join(' ') + '\"/>';\n    weeks.forEach((w, i) => { svg += '<circle cx=\"' + x(i) + '\" cy=\"' + y(val(s, w)) + '\" r=\"3\" fill=\"var(' + SRC[s].v + ')\" stroke=\"var(--surface)\" stroke-width=\"2\"/>'; });\n  });\n  svg += '<line id=\"xh\" y1=\"' + T + '\" y2=\"' + (H - B) + '\" stroke=\"var(--muted)\" stroke-dasharray=\"3 3\" style=\"display:none\"/><rect x=\"' + L + '\" y=\"0\" width=\"' + (W - L - R) + '\" height=\"' + H + '\" fill=\"transparent\" id=\"hit\"/></svg>';\n  el.innerHTML = svg;\n  const hit = el.querySelector('#hit'), xh = el.querySelector('#xh'), s = el.querySelector('svg');\n  hit.onmousemove = (e) => {\n    const r = s.getBoundingClientRect(); const px = (e.clientX - r.left) * W / r.width;\n    let i = 0, best = 1e9; weeks.forEach((w, j) => { const d = Math.abs(x(j) - px); if (d < best) { best = d; i = j; } });\n    xh.setAttribute('x1', x(i)); xh.setAttribute('x2', x(i)); xh.style.display = '';\n    showTip(e, '<b>Week of ' + weeks[i] + '</b><br>' + srcs.map((k) => '<span class=\"src\"><i style=\"background:var(' + SRC[k].v + ')\"></i>' + SRC[k].label + ': ' + val(k, weeks[i]) + '</span>').join('<br>'));\n  };\n  hit.onmouseleave = () => { xh.style.display = 'none'; hideTip(); };\n})();\n\n// table\n(D.bySource || []).forEach((s) => $('fsrc').insertAdjacentHTML('beforeend', '<option value=\"' + esc(s.k) + '\">' + esc(SRC[s.k]?.label || s.k) + '</option>'));\n(D.byDomain || []).forEach((d) => $('fdom').insertAdjacentHTML('beforeend', '<option value=\"' + esc(d.k) + '\">' + esc(DOM[d.k] || d.k) + '</option>'));\nlet shown = 50;\nfunction table() {\n  const q = $('q').value.trim().toLowerCase(), fs = $('fsrc').value; domFilter = $('fdom').value;\n  const list = (D.latest || []).filter((p) => (!fs || p.source === fs) && (!domFilter || p.domain === domFilter) &&\n    (!q || [p.title, p.summary, p.owner].join(' ').toLowerCase().includes(q)));\n  $('count').textContent = list.length + ' of ' + (D.latest || []).length + ' most recent projects';\n  $('more').style.display = list.length > shown ? '' : 'none';\n  $('rows').innerHTML = list.slice(0, shown).map((p) => '<tr><td><a href=\"' + esc(p.url) + '\" target=\"_blank\" rel=\"noopener\">' + esc(p.title) + '</a>' +\n    '<div class=\"s\">' + esc(p.summary) + '</div><div class=\"s\"><span class=\"src\"><i style=\"background:var(' + (SRC[p.source]?.v || '--muted') + ')\"></i>' + esc(SRC[p.source]?.label || p.source) + '</span>' +\n    (p.owner ? ' · ' + esc(p.owner) : '') + (p.stars != null ? ' · ★ ' + p.stars : '') + (p.analyzed_by === 'llm' ? ' · LLM' : '') + '</div></td>' +\n    '<td class=\"hide-sm\"><span class=\"chip\">' + esc(DOM[p.domain] || p.domain) + '</span><br>' + (p.sdgs || []).map((n) => '<span class=\"chip\" title=\"' + esc(SDG[n]) + '\">SDG ' + n + '</span>').join('') + '</td>' +\n    '<td class=\"hide-sm\">' + esc(p.region) + '</td><td style=\"white-space:nowrap\">' + fmtDate(p.date) + '</td></tr>').join('') ||\n    '<tr><td colspan=\"4\" class=\"muted\">No projects match. Run the “AI4SG · Collect & Analyze” workflow to fill the catalogue.</td></tr>';\n}\n$('more').onclick = () => { shown += 50; table(); };\n$('q').oninput = () => { shown = 50; table(); }; $('fsrc').onchange = table; $('fdom').onchange = () => { table(); drawDomains(); };\n$('reset').onclick = () => { $('q').value = ''; $('fsrc').value = ''; $('fdom').value = ''; table(); drawDomains(); };\ntable();\n</script></body></html>`;\n\nreturn [{ json: { body: html, contentType: 'text/html; charset=utf-8' } }];\n"
+      },
+      "id": "bf4fe365-eea3-5889-81e8-c3e41aa7819a",
+      "name": "Render Page",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.body }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "={{ $json.contentType }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "9785263a-15cc-52d9-ae1f-8539f2cdf252",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Dashboard Webhook": {
+      "main": [
+        [
+          {
+            "node": "Query Dashboard Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Dashboard Data": {
+      "main": [
+        [
+          {
+            "node": "Render Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Page": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Singapore"
+  },
+  "tags": []
+}

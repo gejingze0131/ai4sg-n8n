@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI4SG Audit</title>
+<!-- Served by n8n (workflow "AI4SG · A Overview", webhook /webhook/ai4sg-audit).
+     The workflow replaces the DATA placeholder below with the extraction results.
+     Edit this file freely: changes show on the next page reload, no re-import needed. -->
+<style>
+:root{
+  color-scheme:light;
+  --bg:#f6f6f4; --surface:#fcfcfb; --surface-2:#f0efec; --border:#e4e3df; --grid:#ecebe7;
+  --text:#0b0b0b; --text-2:#52514e; --muted:#7a7974;
+  --accent:#2a78d6; --accent-soft:#e3eefb;
+  --good:#1a7f37; --good-soft:#e6f4ea; --warn:#9a6700; --warn-soft:#fff4d6; --bad:#c62828; --bad-soft:#fdecec;
+  --bar:#2a78d6;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;
+  --bg:#121211; --surface:#1a1a19; --surface-2:#242422; --border:#2e2e2b; --grid:#262624;
+  --text:#fff; --text-2:#c3c2b7; --muted:#8f8e86;
+  --accent:#3987e5; --accent-soft:#1c2b3f;
+  --good:#4ac26b; --good-soft:#15291b; --warn:#d8a02c; --warn-soft:#2e2511; --bad:#ef6b6b; --bad-soft:#331819;
+  --bar:#3987e5;
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#121211; --surface:#1a1a19; --surface-2:#242422; --border:#2e2e2b; --grid:#262624;
+  --text:#fff; --text-2:#c3c2b7; --muted:#8f8e86;
+  --accent:#3987e5; --accent-soft:#1c2b3f;
+  --good:#4ac26b; --good-soft:#15291b; --warn:#d8a02c; --warn-soft:#2e2511; --bad:#ef6b6b; --bad-soft:#331819;
+  --bar:#3987e5;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans","Noto Sans Bengali","Bangla Sangam MN","Kohinoor Bangla","Noto Sans Devanagari","Noto Sans Thai",Thonburi,"PingFang SC",sans-serif}
+.orig{font-family:"Noto Sans Bengali","Bangla Sangam MN","Kohinoor Bangla","Noto Sans Devanagari","Kohinoor Devanagari","Noto Sans Thai",Thonburi,-apple-system,sans-serif}
+a{color:var(--accent)}
+.wrap{max-width:1400px;margin:0 auto;padding:20px 16px 48px}
+header.top{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between;margin-bottom:16px}
+h1{font-size:20px;margin:0}
+.sub{color:var(--text-2);font-size:13px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px}
+/* summary */
+.summary{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:12px}
+.kpi{padding:12px 14px}.kpi .l{color:var(--text-2);font-size:12px}.kpi .v{font-size:24px;font-weight:650}.kpi .d{color:var(--muted);font-size:12px}
+.charts{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));margin-bottom:16px}
+.chart{padding:12px 14px}.chart h3{margin:0 0 8px;font-size:12px;font-weight:600;color:var(--text-2)}
+.bar{display:grid;grid-template-columns:minmax(80px,40%) 1fr 28px;gap:8px;align-items:center;font-size:12px;margin:3px 0;cursor:pointer;border-radius:4px}
+.bar:hover{background:var(--surface-2)}
+.bar .k{color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .t{height:10px}.bar .f{height:100%;background:var(--bar);border-radius:0 3px 3px 0;min-width:2px}
+.bar .n{text-align:right;font-variant-numeric:tabular-nums}
+/* filters */
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+input,select,button{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px}
+input[type=search]{flex:1;min-width:200px}
+button{cursor:pointer}
+/* layout */
+.main{display:grid;gap:16px;grid-template-columns:minmax(300px,420px) 1fr;align-items:start}
+@media (max-width:900px){.main{grid-template-columns:1fr}.detail{position:static!important;max-height:none!important}}
+.list{display:flex;flex-direction:column;gap:8px}
+.item{padding:12px 14px;cursor:pointer;border-left:3px solid transparent}
+.item:hover{border-color:var(--border)}
+.item.sel{border-left-color:var(--accent);background:var(--accent-soft)}
+.item h4{margin:0 0 4px;font-size:14px;line-height:1.35}
+.item .t2{color:var(--text-2);font-size:13px;margin-bottom:6px}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{display:inline-flex;align-items:center;gap:4px;background:var(--surface-2);border-radius:10px;padding:1px 8px;font-size:12px;color:var(--text-2);white-space:nowrap}
+.flag{background:var(--warn-soft);color:var(--warn)}.flag.bad{background:var(--bad-soft);color:var(--bad)}.okc{background:var(--good-soft);color:var(--good)}
+.meter{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2)}
+.meter .m{width:60px;height:6px;background:var(--grid);border-radius:3px;overflow:hidden}.meter .m i{display:block;height:100%;background:var(--bar)}
+.detail{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;padding:18px 20px}
+.detail h2{font-size:19px;margin:0 0 6px;line-height:1.35}
+.titles{margin:6px 0 10px;padding:10px 12px;background:var(--surface-2);border-radius:8px}
+.titles .o{font-size:15px}.titles .e{color:var(--text-2);font-size:13px;margin-top:2px}
+.sec{margin-top:18px}.sec>h3{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0 0 8px}
+.facts{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.fact{border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+.fact .h{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:4px}
+.fact .h b{font-size:13px}
+.big{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:13px}.kv dt{color:var(--muted)}.kv dd{margin:0}
+.na{color:var(--muted);font-style:italic}
+.ver{font-size:11px;padding:1px 7px;border-radius:9px;white-space:nowrap}
+.ver.ok{background:var(--good-soft);color:var(--good)}.ver.no{background:var(--bad-soft);color:var(--bad)}.ver.none{background:var(--surface-2);color:var(--muted)}
+.quotes{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+.q{display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;border-top:1px dashed var(--border);padding-top:6px}
+@media (max-width:600px){.q{grid-template-columns:1fr}}
+.q .lab{font-size:11px;color:var(--muted);display:block}
+.q .orig{font-size:14px}
+details>summary{cursor:pointer;color:var(--accent);font-size:12px;margin-top:6px}
+.ladder{display:flex;gap:3px;margin:6px 0}.ladder span{flex:1;height:8px;border-radius:2px;background:var(--grid)}.ladder span.on{background:var(--bar)}
+.ladder-l{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.interp p{margin:4px 0}.interp .lbl{font-weight:600}
+ul.gaps{margin:4px 0;padding-left:18px}
+table.qt{width:100%;border-collapse:collapse;font-size:13px}table.qt td,table.qt th{border-bottom:1px solid var(--grid);padding:6px;vertical-align:top;text-align:left}
+table.qt th{color:var(--muted);font-weight:600;font-size:12px}
+.banner{padding:10px 12px;border-radius:8px;margin:10px 0;font-size:13px}
+.banner.warn{background:var(--warn-soft);color:var(--warn)}.banner.bad{background:var(--bad-soft);color:var(--bad)}
+pre{white-space:pre-wrap;font-size:12px;background:var(--surface-2);padding:10px;border-radius:6px;max-height:320px;overflow:auto}
+.empty{padding:40px;text-align:center;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div><h1>AI for Social Good · Audit</h1><div class="sub" id="meta"></div></div>
+    <div class="sub">Every AI result with its source quotes in the original language and in English. · <a href="/form/ai4sg-run">Start a new run</a></div>
+  </header>
+
+  <section class="summary" id="kpis"></section>
+  <section class="charts">
+    <div class="card chart"><h3>By country · click to filter</h3><div id="c-country"></div></div>
+    <div class="card chart"><h3>Strength of evidence for benefits</h3><div id="c-evidence"></div></div>
+    <div class="card chart"><h3>Deployment stage</h3><div id="c-stage"></div></div>
+  </section>
+
+  <div class="filters">
+    <input type="search" id="q" placeholder="Search headline, project, organisation…">
+    <select id="f-country"><option value="">All countries</option></select>
+    <select id="f-domain"><option value="">All domains</option></select>
+    <select id="f-status">
+      <option value="">To review</option>
+      <option value="attention">Needs attention (flags or low confidence)</option>
+      <option value="clean">No flags</option>
+      <option value="filtered">Filtered out by AI (spot-check)</option>
+    </select>
+    <select id="f-sort"><option value="new">Newest first</option><option value="conf">Lowest confidence first</option></select>
+    <button id="reset">Reset</button>
+  </div>
+
+  <div class="main">
+    <div><div class="sub" id="count" style="margin-bottom:6px"></div><div class="list" id="list"></div></div>
+    <div class="card detail" id="detail"><div class="empty">Select a result on the left.</div></div>
+  </div>
+</div>
+
+<script>
+const DATA = /*__DATA__*/[];
+
+// ---------- vocabularies ----------
+const LANG = {bn:'Bengali',hi:'Hindi',id:'Indonesian',th:'Thai',ta:'Tamil',ur:'Urdu',ne:'Nepali',en:'English',ms:'Malay',vi:'Vietnamese'};
+const DOMAIN = {health:'Health',agriculture_food:'Agriculture & food',education:'Education',financial_inclusion:'Financial inclusion',
+  social_protection:'Social protection',water_sanitation:'Water & sanitation',climate_disaster:'Climate & disaster',gender:'Gender',
+  public_services:'Public services',accessibility:'Accessibility',humanitarian:'Humanitarian',other:'Other'};
+const STAGE = {idea:'Idea / announced',pilot:'Pilot',scaled:'Scaled',discontinued:'Discontinued',unknown:'Unknown'};
+const EVID = [['rct','RCT'],['quasi_experimental','Quasi-experimental'],['observational','Observational'],['pilot_report','Pilot report'],['anecdotal','Anecdotal'],['none','None']];
+const SRC = {news:'News',gov_report:'Government report',gov_website:'Government website',journal:'Journal',conference_report:'Conference',open_source:'Open source',ngo_report:'NGO report',other:'Other'};
+const FLAGS = {
+  quote_not_found:['Quote not found in source','bad'], cost_without_evidence:['Cost figure not backed by a quote','bad'],
+  benefit_without_evidence:['Benefit claim not backed by a quote','bad'], no_text_extracted:['Source text could not be read','warn'],
+  extraction_failed:['AI extraction failed','bad']};
+
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const $ = (id) => document.getElementById(id);
+const nfmt = (n) => (typeof n === 'number' && isFinite(n)) ? n.toLocaleString('en-US') : '';
+const langName = (c) => LANG[c] || (c ? c.toUpperCase() : '—');
+
+// ---------- normalise rows (tolerates the older flat structure) ----------
+const rows = DATA.map((r) => {
+  const f = r.fields || {};
+  const p = f.project || {};
+  const src = f.source || {};
+  const ev = Array.isArray(f.evidence) ? f.evidence : [];
+  return {
+    id: r.id, url: r.url, created: r.created_at, status: r.status, country: (p.countries && p.countries[0]) || r.country || '',
+    lang: src.language || r.language || '', sourceType: r.source_type, flags: r.flags || [], conf: r.confidence,
+    failed: !r.fields, raw: r.fields,
+    isAi: f.is_ai4sg !== false,
+    headline: f.headline || p.name || f.project_name || r.title_en || r.title || r.url,
+    titleOrig: src.title_original || r.title || '', titleEn: src.title_en || r.title_en || '',
+    publisher: src.publisher || '', published: src.published || '', summary: src.summary_en || r.why_relevant || '',
+    project: p.name ? p : { name: f.project_name, implementing_org: f.implementing_org, countries: f.countries,
+      ai_technique: f.ai_technique, deployment_stage: f.deployment_stage, target_beneficiaries: f.target_beneficiaries, domain: f.domain },
+    reach: f.reach || {}, cost: f.cost || {}, benefit: f.benefit || {},
+    evid: f.evidence_strength || { type: f.evidence_type }, interp: typeof f.interpretation === 'object' ? f.interpretation : { overall: f.interpretation },
+    risks: Array.isArray(f.risks_limitations) ? f.risks_limitations : (f.risks_limitations ? [f.risks_limitations] : []),
+    evidence: ev,
+  };
+});
+rows.forEach(r => { r.domain = r.project.domain || ''; r.stage = r.project.deployment_stage || 'unknown';
+  r.filtered = r.status === 'filtered_out' || (!r.failed && !r.isAi);
+  r.screen = (r.raw && r.raw.screen) || null;
+  if (r.screen && !r.summary) r.summary = r.screen.reason ? `Screen: ${r.screen.reason}` : '';
+  r.attention = !r.filtered && (r.flags.length > 0 || (r.conf ?? 0) < 0.5); });
+const review = rows.filter(r => !r.filtered);   // what the experts are asked to audit
+
+// ---------- summary ----------
+const count = (arr, key) => arr.reduce((m, x) => { const k = key(x) || '—'; m[k] = (m[k] || 0) + 1; return m; }, {});
+function kpis() {
+  const ai = review.filter(r => !r.failed);
+  const tiles = [
+    ['To review', review.length, `${review.filter(r => r.failed).length} failed extractions`],
+    ['With a cost figure', ai.filter(r => r.cost.stated).length, 'quoted from the source'],
+    ['With a stated benefit', ai.filter(r => r.benefit.stated).length, 'outcome, not just outputs'],
+    ['Need attention', review.filter(r => r.attention).length, 'flags or confidence < 0.5'],
+    ['Filtered out by AI', rows.length - review.length, 'not AI4SG or low relevance · hidden'],
+  ];
+  $('kpis').innerHTML = tiles.map(([l, v, d]) => `<div class="card kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${esc(d)}</div></div>`).join('');
+  $('meta').textContent = rows.length ? `${review.length} to review · ${rows.length - review.length} filtered out by the AI screen · latest ${new Date(rows[0].created).toLocaleString()}` : 'No results yet';
+}
+function bars(el, entries, label, onClick) {
+  const max = Math.max(1, ...entries.map(e => e[1]));
+  el.innerHTML = entries.length ? entries.map(([k, n]) => `<div class="bar" data-k="${esc(k)}" title="${esc(label(k))}: ${n}">
+    <span class="k">${esc(label(k))}</span><span class="t"><span class="f" style="display:${n ? 'block' : 'none'};width:${100 * n / max}%"></span></span><span class="n">${n}</span></div>`).join('')
+    : '<div class="na">No data</div>';
+  if (onClick) el.querySelectorAll('.bar').forEach(b => b.onclick = () => onClick(b.dataset.k));
+}
+function charts() {
+  const ai = review.filter(r => !r.failed);
+  bars($('c-country'), Object.entries(count(review, r => r.country)).sort((a, b) => b[1] - a[1]), k => k,
+    k => { $('f-country').value = $('f-country').value === k ? '' : k; render(); });
+  const ec = count(ai, r => r.evid.type || 'none');
+  bars($('c-evidence'), EVID.map(([k]) => [k, ec[k] || 0]), k => (EVID.find(e => e[0] === k) || [k, k])[1]);
+  const sc = count(ai, r => r.stage);
+  bars($('c-stage'), Object.keys(STAGE).map(k => [k, sc[k] || 0]), k => STAGE[k] || k);
+}
+
+// ---------- evidence helpers ----------
+function refsStatus(r, block) {
+  const refs = (block && block.evidence_refs) || [];
+  const qs = r.evidence.filter(e => refs.includes(e.id) || (!refs.length && e.field && block && block._name && e.field.startsWith(block._name)));
+  if (!qs.length) return { html: '<span class="ver none">No quote</span>', qs };
+  const ok = qs.every(q => q.found !== false);
+  return { html: ok ? '<span class="ver ok">✓ Quote verified</span>' : '<span class="ver no">✗ Quote not found in source</span>', qs };
+}
+function quoteHtml(q, lang) {
+  if (!q.quote_en || q.quote_en.trim() === String(q.quote_original || '').trim())
+    return `<div class="q" style="grid-template-columns:1fr"><div><span class="lab">Quote · ${esc(langName(lang))}</span>${esc(q.quote_original)}${q.found === false ? ' <span class="ver no">not found</span>' : ''}</div></div>`;
+  return `<div class="q"><div><span class="lab">Original · ${esc(langName(lang))}</span><span class="orig" lang="${esc(lang)}">${esc(q.quote_original)}</span></div>
+    <div><span class="lab">English</span>${esc(q.quote_en || '')}${q.found === false ? ' <span class="ver no">not found</span>' : ''}</div></div>`;
+}
+function factCard(r, title, name, block, body) {
+  block = Object.assign({ _name: name }, block || {});
+  const st = refsStatus(r, block);
+  const quotes = st.qs.length ? `<details><summary>Show ${st.qs.length} quote${st.qs.length > 1 ? 's' : ''}</summary><div class="quotes">${st.qs.map(q => quoteHtml(q, r.lang)).join('')}</div></details>` : '';
+  return `<div class="fact"><div class="h"><b>${title}</b>${block.stated === false ? '<span class="ver none">Not stated</span>' : st.html}</div>${body}${quotes}</div>`;
+}
+const kv = (pairs) => `<dl class="kv">${pairs.filter(([, v]) => v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && !v.length))
+  .map(([k, v]) => `<dt>${k}</dt><dd>${esc(Array.isArray(v) ? v.join(', ') : v)}</dd>`).join('')}</dl>`;
+
+// ---------- detail ----------
+function detail(r) {
+  if (!r) { $('detail').innerHTML = '<div class="empty">Select a result on the left.</div>'; return; }
+  const flags = r.flags.map(f => `<span class="chip flag ${(FLAGS[f] || [])[1] || ''}">⚠ ${esc((FLAGS[f] || [f])[0])}</span>`).join('');
+  const c = r.cost, b = r.benefit, re = r.reach, p = r.project;
+  const evIdx = EVID.findIndex(e => e[0] === (r.evid.type || 'none'));
+  let h = `<h2>${esc(r.headline)}</h2>
+    <div class="chips">${chips(r)}</div>
+    ${r.failed ? '<div class="banner bad">The AI could not produce a structured result for this source. Open the source to review it manually.</div>' : ''}
+    ${r.filtered ? `<div class="banner warn">Filtered out by the AI screen${r.screen ? ` (AI4SG: ${r.screen.is_ai4sg ? 'yes' : 'no'}, relevance ${Math.round(100 * (r.screen.relevance || 0))}%)` : ''}. Shown only for spot-checks. ${r.screen && r.screen.reason ? esc(r.screen.reason) : ''}</div>` : ''}
+    ${flags ? `<div class="chips" style="margin-top:8px">${flags}</div>` : ''}
+    <div class="titles"><div class="o orig" lang="${esc(r.lang)}">${esc(r.titleOrig || '—')}</div>
+      ${r.titleEn && r.titleEn !== r.titleOrig ? `<div class="e">English: ${esc(r.titleEn)}</div>` : ''}
+      <div class="e">${esc([r.publisher, r.published].filter(Boolean).join(' · '))} · <a href="${esc(r.url)}" target="_blank" rel="noopener">Open source ↗</a></div></div>
+    ${r.summary ? `<p>${esc(r.summary)}</p>` : ''}`;
+  if (!r.failed && !r.filtered) {
+    h += `<div class="sec"><h3>Key facts</h3><div class="facts">
+      ${factCard(r, 'Cost', 'cost', c, c.stated ? `<div class="big">${esc(c.currency || '')} ${nfmt(c.amount)}</div>
+        ${kv([['As written', c.amount_as_written], ['Covers', c.what_is_covered], ['Per beneficiary', c.cost_per_beneficiary != null ? `${c.currency || ''} ${nfmt(c.cost_per_beneficiary)}` : '']])}`
+        : '<div class="na">No cost figure in the source.</div>')}
+      ${factCard(r, 'Benefit', 'benefit', b, b.stated ? `<div class="big" style="font-size:17px">${esc(b.magnitude || b.outcome || '')}</div>
+        ${kv([['Outcome', b.outcome], ['Measured by', b.metric], ['Compared with', b.comparison]])}`
+        : `<div class="na">No outcome for people stated.</div>${(b.outputs_reported || []).length ? kv([['Outputs only', b.outputs_reported]]) : ''}`)}
+      ${factCard(r, 'Reach', 'reach', re, re.stated || re.number ? `<div class="big">${nfmt(re.number)}</div>${kv([['Unit', re.unit], ['Type', re.is_target ? 'Target (not yet reached)' : 'Achieved']])}`
+        : '<div class="na">Not stated.</div>')}
+      <div class="fact"><div class="h"><b>Strength of evidence</b></div>
+        <div style="font-weight:600">${esc((EVID[evIdx] || ['', 'Unknown'])[1])}</div>
+        <div class="ladder">${EVID.map((e, i) => `<span class="${i >= evIdx && evIdx >= 0 ? 'on' : ''}" title="${e[1]}"></span>`).reverse().join('')}</div>
+        <div class="ladder-l"><span>None</span><span>RCT</span></div>
+        ${r.evid.rationale ? `<div style="font-size:13px;margin-top:6px">${esc(r.evid.rationale)}</div>` : ''}</div>
+    </div></div>
+    <div class="sec"><h3>Project</h3>${factCard(r, p.name || 'Project', 'project', p, kv([
+      ['Run by', p.implementing_org], ['Partners', p.partners], ['Funders', p.funders], ['Where', [(p.countries || []).join(', '), p.location].filter(Boolean).join(' · ')],
+      ['Domain', DOMAIN[p.domain] || p.domain], ['AI used for', p.ai_technique], ['Stage', STAGE[p.deployment_stage] || p.deployment_stage], ['For whom', p.target_beneficiaries]]))}</div>`;
+  }
+  const it = r.interp || {};
+  if (it.overall || it.cost_benefit || it.credibility || (it.gaps || []).length) {
+    h += `<div class="sec interp"><h3>Interpretation</h3>
+      ${it.overall ? `<p>${esc(it.overall)}</p>` : ''}
+      ${it.cost_benefit ? `<p><span class="lbl">Cost–benefit: </span>${esc(it.cost_benefit)}</p>` : ''}
+      ${it.credibility ? `<p><span class="lbl">Credibility: </span>${esc(it.credibility)}</p>` : ''}
+      ${(it.gaps || []).length ? `<p class="lbl">What is missing</p><ul class="gaps">${it.gaps.map(g => `<li>${esc(g)}</li>`).join('')}</ul>` : ''}</div>`;
+  }
+  if (r.risks.length) h += `<div class="sec"><h3>Risks & limitations mentioned</h3><ul class="gaps">${r.risks.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`;
+  if (r.evidence.length) h += `<div class="sec"><h3>All quotes (${r.evidence.length})</h3><table class="qt"><tr><th></th><th>Original · ${esc(langName(r.lang))}</th><th>English</th><th>Used for</th></tr>
+    ${r.evidence.map(q => `<tr><td>${q.found === false ? '<span class="ver no">✗</span>' : q.found ? '<span class="ver ok">✓</span>' : ''}</td>
+      <td class="orig" lang="${esc(r.lang)}">${esc(q.quote_original)}</td><td>${esc(q.quote_en || '')}</td><td>${esc(q.field || '')}</td></tr>`).join('')}</table></div>`;
+  h += `<div class="sec"><details><summary>Raw data (for debugging)</summary><pre>${esc(JSON.stringify(r.raw, null, 2))}</pre></details></div>`;
+  $('detail').innerHTML = h; $('detail').scrollTop = 0;
+}
+function chips(r) {
+  return [r.country, langName(r.lang), SRC[r.sourceType] || r.sourceType, STAGE[r.stage], DOMAIN[r.domain]]
+    .filter(Boolean).map(x => `<span class="chip">${esc(x)}</span>`).join('');
+}
+
+// ---------- list + filters ----------
+let selected = null;
+function render() {
+  const q = $('q').value.trim().toLowerCase(), fc = $('f-country').value, fd = $('f-domain').value, fs = $('f-status').value;
+  let list = rows.filter(r => (!fc || r.country === fc) && (!fd || r.domain === fd) &&
+    (fs === 'filtered' ? r.filtered : !r.filtered) &&
+    (!fs || fs === 'filtered' || (fs === 'attention' && r.attention) || (fs === 'clean' && !r.flags.length && !r.failed)) &&
+    (!q || [r.headline, r.titleEn, r.titleOrig, r.project.name, r.project.implementing_org, r.summary].join(' ').toLowerCase().includes(q)));
+  if ($('f-sort').value === 'conf') list = list.slice().sort((a, b) => (a.conf ?? 0) - (b.conf ?? 0));
+  $('count').textContent = fs === 'filtered' ? `${list.length} sources filtered out by the AI screen` : `${list.length} of ${review.length} results to review`;
+  $('list').innerHTML = list.map(r => `<div class="card item ${selected === String(r.id) ? 'sel' : ''}" data-id="${esc(r.id)}">
+      <h4>${esc(r.headline)}</h4>
+      ${r.titleOrig && r.lang && r.lang !== 'en' ? `<div class="t2 orig" lang="${esc(r.lang)}">${esc(r.titleOrig)}</div>` : ''}
+      <div class="chips">${chips(r)}${r.flags.length ? `<span class="chip flag">⚠ ${r.flags.length} flag${r.flags.length > 1 ? 's' : ''}</span>` : ''}
+        ${r.filtered ? `<span class="chip flag">Filtered out${r.screen && r.screen.relevance != null ? ' · relevance ' + Math.round(100 * r.screen.relevance) + '%' : ''}</span>` : ''}${r.failed ? '<span class="chip flag bad">Failed</span>' : ''}</div>
+      <div class="meter" style="margin-top:6px">Confidence <span class="m"><i style="width:${Math.round(100 * (r.conf || 0))}%"></i></span>${r.conf != null ? Math.round(100 * r.conf) + '%' : '—'}</div>
+    </div>`).join('') || '<div class="empty">No results match these filters.</div>';
+  $('list').querySelectorAll('.item').forEach(el => el.onclick = () => { selected = el.dataset.id; render(); detail(rows.find(r => String(r.id) === selected)); });
+}
+function fillSelect(el, values, label) { values.forEach(v => el.insertAdjacentHTML('beforeend', `<option value="${esc(v)}">${esc(label(v))}</option>`)); }
+fillSelect($('f-country'), [...new Set(rows.map(r => r.country).filter(Boolean))].sort(), v => v);
+fillSelect($('f-domain'), [...new Set(rows.map(r => r.domain).filter(Boolean))].sort(), v => DOMAIN[v] || v);
+['q', 'f-country', 'f-domain', 'f-status', 'f-sort'].forEach(id => $(id).addEventListener(id === 'q' ? 'input' : 'change', render));
+$('reset').onclick = () => { ['q', 'f-country', 'f-domain', 'f-status'].forEach(id => $(id).value = ''); $('f-sort').value = 'new'; render(); };
+
+kpis(); charts(); render();
+if (review.length) { selected = String(review[0].id); render(); detail(review[0]); }
+</script>
+</body>
+</html>

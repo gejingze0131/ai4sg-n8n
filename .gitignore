@@ -1,0 +1,7 @@
+.env
+.env.tmp
+.setup-done
+n8n/.render/
+backup*.sql
+.DS_Store
+/db
