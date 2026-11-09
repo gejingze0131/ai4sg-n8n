@@ -52,6 +52,8 @@ export async function getSource(id: number, v: Viewer) {
   if (!source) return null;
   if (source.state !== "analysed" && !isExpert(v)) return null;
   const expert = isExpert(v);
+  delete source.reviewer_id;
+  if (!expert) { delete source.reviewer; delete source.review_comment; }
   const [others, project] = await Promise.all([
     source.project_id ? q(`SELECT id, headline, state FROM api.source_cards WHERE project_id = $1 AND id <> $2 ${expert ? "" : "AND state = 'analysed'"} ORDER BY id LIMIT 50`, [source.project_id, id]) : Promise.resolve([]),
     source.project_id ? q1(`SELECT code, name, n_sources, tool_code, tool_name, analysed FROM api.project_cards WHERE id = $1`, [source.project_id]) : Promise.resolve(undefined),

@@ -32,6 +32,7 @@ const BY: Record<string, string> = {
   tech: "unnest(CASE WHEN cardinality(c.tech_categories) > 0 THEN c.tech_categories ELSE ARRAY['unspecified'] END) AS key",
   stage: "c.stage AS key",
   evidence: "c.evidence_type AS key",
+  score: "COALESCE(c.score::text, 'none') AS key",
 };
 export const BREAKDOWNS = Object.keys(BY);
 

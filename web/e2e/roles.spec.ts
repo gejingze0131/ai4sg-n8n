@@ -85,6 +85,8 @@ test.describe("anonymous visitor", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.goto("/sources?country=Bangladesh");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.goto(`/sources/${await firstId(page.request, "status=analysed")}`);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     const bengali = await page.request.get("/api/search?q=%E0%A6%95%E0%A7%83%E0%A6%A4%E0%A7%8D%E0%A6%B0%E0%A6%BF%E0%A6%AE");
     expect(bengali.ok()).toBe(true);
   });

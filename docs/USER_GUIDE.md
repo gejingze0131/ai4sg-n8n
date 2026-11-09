@@ -7,15 +7,18 @@ results** on a web page.
 
 ## 1. Access
 
-For now, the system can be tried at **https://gemacbook-air.tail2851f0.ts.net**. It runs on a laptop, so it
-is online during agreed trial sessions.
+The system is a website: **https://gemacbook-air.tail2851f0.ts.net**. It runs on a laptop, so it is online
+during agreed trial sessions.
 
-| Page | Address | Used for |
-|---|---|---|
-| Run page | https://gemacbook-air.tail2851f0.ts.net/form/ai4sg-run | Start a search |
-| Audit page | https://gemacbook-air.tail2851f0.ts.net/webhook/ai4sg-audit | Review results |
+Anyone can browse the dashboard, the map and everything analysed without an account. To review results,
+**Register** (top right), with your e-mail and a password, and choose **Expert**. You can start straight away, and
+your name is saved with your decisions.
 
-No login is needed: open the links in any browser.
+| Role | What you can do |
+|---|---|
+| Visitor | Browse the dashboard, map, projects, tools, analysed sources and runs |
+| Expert | Also: see sources not analysed yet and the stored copies, pass or fail each result with a comment, send sources to the analysis (up to 30 at a time), correct how sources are grouped into projects |
+| Administrator | Also: start runs, screen and organise again, take out a run, manage users, see the log of every change |
 
 ## 2. How the pipeline works
 
@@ -50,7 +53,7 @@ The pipeline is built in n8n, a visual workflow tool. Each box is one step, and 
      stronger evidence and full text when otherwise similar. Each choice and each source left out gets a one-line
      reason. Left empty, every source that is not a duplicate is analysed.
    The rest wait as *Queued*, already placed in their project; the next run of the domain organises the whole queue
-   again, and you can send any of them to the analysis from the audit page (*Not analysed yet*).
+   again, and you can send any of them to the analysis from the website (*Not analysed*).
 
 ![Workflow C2: extract, interpret and link to a project](img/extract.png)
 
@@ -71,8 +74,9 @@ same tool. The definition is section 10 of the Extraction Skill ("One project, m
 
 ## 3. Running a search
 
-Open the run page, adjust the settings and click **Start run**. After about 10 to 30 minutes, new results
-appear on the audit page. Each run uses paid API credits, so start small (e.g. 6 searches, 10 sources).
+Administrators start a run on the website (**Admin**, then **Start a run**): adjust the settings and click **Start run**.
+Only one run can go at a time; **Admin** shows its progress and numbers. After about 10 to 90 minutes, new results appear
+on the website. Each run uses paid API credits, so start small (e.g. 6 searches, 10 sources).
 
 | Setting | Meaning |
 |---|---|
@@ -86,27 +90,27 @@ appear on the audit page. Each run uses paid API credits, so start small (e.g. 6
 | Max sources to analyse in depth | The analysis budget of this run: GPT-6 Sol chooses that many from the queue; the others wait as Queued (already grouped into their projects). Empty = analyse every source that passes the screen (except duplicates) |
 | Relevance screen | How strict the first screen is: Broad 0.4, Balanced 0.6, Strict 0.8 |
 
-## 4. Reviewing results on the audit page
+## 4. Reviewing results on the website
 
-![The audit page](img/audit.png)
+Each **project** is one deployment of an AI tool, with all its sources; you **review each source**.
+Open a project to see its tool, its summary and the list of its sources, then open a source to review it. A project shows
+how many of its analysed sources have been reviewed; ✓ when all passed, ✗ when one failed.
 
-Each card on the left is one **project** (one deployment of an AI tool) with all its sources; you **review each source**.
-Open a project to see its tool, its summary and the list of its sources (analysed, queued and duplicates), then open a
-source to review it. A project with only one source opens straight on that source's page. A project shows how many of its
-analysed sources have been reviewed; ✓ when all passed, ✗ when one failed.
-
-- **Top row and charts**: sources awaiting review, passed, failed; projects with outcome data; sources analysed, queued and
-  filtered out; charts of projects by country and AI technology (click to filter), best relevance score,
-  deployment stage and strength of evidence.
+- **Dashboard**: the key figures, the **project map**, and charts of projects by domain, country, AI technology, stage,
+  strength of evidence and relevance score (click a bar to filter). Everything follows the filters at the top, and the
+  address of the page keeps them, so you can send someone exactly what you are looking at.
+- **Project map**: one dot per place of a deployment. Size is the number of people reached, colour is the domain; zoomed out,
+  dots gather per province or state. Switch between *Globe* and *Flat*; click a dot for the project. Reach figures count
+  different things (farmers, students, schools), so only figures that count people set the size, and positions are approximate.
 - **Runs**: for each run, how many sources were found, unique, new, reached by following leads, downloaded,
   passed the screen, analysed (some from the queue), still queued, and how many new projects appeared.
 - **Domain tags**: every item carries coloured tags for the domains it actually belongs to (set by the screen; one item can
-  have several, e.g. a farmers' scheme chatbot is Public service and Agriculture). The *Domain* buttons at the top limit the
-  whole page (list, numbers, charts, *Not analysed yet*) to items with that tag.
-- **Filters**: search, country, technology, status (*Awaiting review*, *All*, *Passed*, *Failed*, *Needs attention*)
-  and sorting (newest, oldest, relevance score, domain, country, name). Sources not analysed are in *Not analysed yet* at the bottom.
-  The search box also finds a project code such as `P-00012`.
-- **Project pane**: the tool (with links to its other deployments), the place and phase, the project summary, the list of
+  have several, e.g. a farmers' scheme chatbot is Public service and Agriculture).
+- **Finding things**: the search box at the top looks across projects, tools and sources, and also finds a code such as
+  `P-00012`. **Projects** and **Sources** filter by domain, country, technology, stage, evidence, review state
+  (*Awaiting review*, *Passed*, *Failed*, *Needs attention*), source type, run, and whether outcomes or costs are reported.
+  **Tools** lists each tool with all its deployments.
+- **Project page**: the tool (with links to its other deployments), the place and phase, the project summary, the list of
   its **sources** (S12 …, with type, strength of evidence, whether the full text or only the abstract was read, score, your
   review, and how it was grouped; queued sources and duplicates are listed too), then the merged facts: organisations,
   AI technology and products, timeline across all sources, a map of all places, use, the domain fields, reach,
@@ -125,23 +129,23 @@ analysed sources have been reviewed; ✓ when all passed, ✗ when one failed.
 - **Relevance score (0 to 100)** is computed by fixed rules, not by the AI: five criteria of 20 points
   (AI technology specified, social purpose and beneficiaries, specific location, concrete implementation,
   quantified facts), each counted only when backed by a quote found word for word in the source.
-- **Pass / Fail**: type your name once at the top of the page, then use the buttons at the bottom of each
-  **source** page, with an optional comment. Decisions are saved and can be changed later. *Awaiting review* lists the
+- **Pass / Fail**: sign in as an expert, then use the buttons at the bottom of each
+  **source** page, with an optional comment. Decisions are saved under your name and can be changed later. *Awaiting review* lists the
   projects that still have an analysed source without a decision. (Decisions made on whole projects before this change
-  are still shown on the project page.)
-- **Not analysed yet** (bottom of the page): every source without an in-depth analysis, grouped by the reason: waiting in
+  are still shown on the project page.) **My account** lists your reviews and analysis requests.
+- **Not analysed** (in the top menu, for experts): every source without an in-depth analysis, grouped by the reason: waiting in
   the queue (passed the screen but not chosen within the analysis budget; the selection's reason is shown), duplicates (the same
   document as another source, which is named), set aside by the
   screen (with the AI's reason), could not be downloaded (with the error), not screened yet, and, for spot-checks, sources the
   analysis judged not AI4SG. Open any of them to read it; if it is worth analysing, click **Analyse** (or tick several and
-  **Analyse selected**, up to 30). A source without text is downloaded first. Each takes about a minute; reload the page to see
-  the result and the updated project.
+  **Analyse selected**, up to 30). A source without text is downloaded first. Each takes about a minute; the page shows when
+  the request has finished.
 
 **Flags**: `quote_not_found` (a quote is not in the source text), `cost_without_evidence` /
 `benefit_without_evidence` / `outcome_without_evidence` (a figure with no matching quote), `no_text_extracted` (page or PDF unreadable),
 `extraction_failed` (no usable AI result), `abstract_only` (only the abstract could be read).
 
-Please also open **Set aside by the screen** (under *Not analysed yet*) now and then: if relevant sources appear there, the screen is too
+Please also open **Set aside by the screen** (under *Not analysed*) now and then: if relevant sources appear there, the screen is too
 strict or the AI4SG definition in the Search Skill needs refining. A case you corrected by hand also makes a
 good worked example (section 5).
 

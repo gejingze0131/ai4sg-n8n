@@ -79,7 +79,8 @@
   .facts { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
   .fact { background: var(--color-surface); border: 1px solid var(--color-line); border-radius: 10px; padding: 12px 14px; min-width: 0; }
   .fact-wide { grid-column: 1 / -1; }
-  .fact-h { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .fact-h { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; align-items: center; margin-bottom: 6px; }
+  .fact-h .ver { white-space: normal; }
   .fact-h b { font-size: 15px; }
   .big { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.25; }
   .mid { font-size: 17px; font-weight: 600; line-height: 1.35; }

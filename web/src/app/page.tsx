@@ -13,8 +13,8 @@ const STEP_LABEL: Record<string, string> = { found: "Found by the searches", uni
 
 export default async function Dashboard({ searchParams }: { searchParams: Promise<RawParams> }) {
   const f = parseProjects(await searchParams);
-  const [v, stats, facets, byDomain, byCountry, byTech, byStage, byEvidence, pipe] = await Promise.all([
-    viewer(), getStats(f), getFacets(), getBreakdown(f, "domain"), getBreakdown(f, "country"), getBreakdown(f, "tech"), getBreakdown(f, "stage"), getBreakdown(f, "evidence"), getPipelineStats(f.domain),
+  const [v, stats, facets, byDomain, byCountry, byTech, byStage, byEvidence, byScore, pipe] = await Promise.all([
+    viewer(), getStats(f), getFacets(), getBreakdown(f, "domain"), getBreakdown(f, "country"), getBreakdown(f, "tech"), getBreakdown(f, "stage"), getBreakdown(f, "evidence"), getBreakdown(f, "score"), getPipelineStats(f.domain),
   ]);
   const query = projectQuery(f);
   const toggle = (key: keyof ProjectFilters, value: string) => {
@@ -23,6 +23,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   };
   const stage = new Map(byStage.map((e) => [e.key, e.n]));
   const evidence = new Map(byEvidence.map((e) => [e.key, e.n]));
+  const score = new Map(byScore.map((e) => [e.key, e.n]));
   const tiles: [string, number, string, string?][] = [
     ["Sources analysed", stats.analysed_sources, `of ${fmtNum(stats.sources_total)} found`, `/sources${query ? `?${query}` : ""}`],
     ["Projects", stats.projects, `${fmtNum(stats.projects_pending)} more waiting for analysis`, `/projects${query ? `?${query}` : ""}`],
@@ -62,9 +63,12 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         {panel("AI technology", <BarList entries={byTech.map((e) => ({ key: e.key, n: e.n, label: TECH[e.key] ?? e.key, href: toggle("tech", e.key), active: f.tech === e.key }))} />, "click to filter")}
         {panel("Deployment stage", <BarList entries={Object.keys(STAGE).filter((k) => stage.get(k)).map((k) => ({ key: k, n: stage.get(k)!, label: STAGE[k], href: toggle("stage", k), active: f.stage === k }))} />)}
         {panel("Strength of evidence", <BarList entries={EVIDENCE.filter(([k]) => evidence.get(k)).map(([k, label]) => ({ key: k, n: evidence.get(k)!, label, href: toggle("evidence", k), active: f.evidence === k }))} />, "best source of each project")}
-        {panel("From search to analysis", <BarList entries={pipe.funnel.map((s) => ({ key: s.key, n: s.n, label: STEP_LABEL[s.key], hint: `${STEP_LABEL[s.key]}: ${s.n} (${Math.round((100 * s.n) / foundTotal)}% of found)` }))} />, `all runs${f.domain ? ` in ${DOMAIN_TAGS[f.domain] ?? f.domain}` : ""}`)}
+        {panel("Relevance score", <BarList entries={["100", "80", "60", "40", "20", "0"].map((k) => ({ key: k, n: score.get(k) ?? 0, label: `${k} / 100` }))} />, "best source of each project")}
       </div>
-      {panel("Library over the runs", <><TrendChart points={pipe.series} /><p className="note mt-1">Cumulative, one point per run. The figures for each run are on the <Link href="/runs">Runs</Link> page.</p></>)}
+      <div className="grid gap-3 lg:grid-cols-2">
+        {panel("From search to analysis", <BarList entries={pipe.funnel.map((s) => ({ key: s.key, n: s.n, label: STEP_LABEL[s.key], hint: `${STEP_LABEL[s.key]}: ${s.n} (${Math.round((100 * s.n) / foundTotal)}% of found)` }))} />, `all runs${f.domain ? ` in ${DOMAIN_TAGS[f.domain] ?? f.domain}` : ""}`)}
+        {panel("Library over the runs", <><TrendChart points={pipe.series} /><p className="note mt-1">Cumulative, one point per run. The figures for each run are on the <Link href="/runs">Runs</Link> page.</p></>)}
+      </div>
     </div>
   );
 }

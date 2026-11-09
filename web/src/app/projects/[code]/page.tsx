@@ -18,7 +18,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ code: 
   const v = await viewer();
   const data = await getProject(code, v);
   if (!data) notFound();
-  const { project: P, sources, siblings } = data;
+  const { project: P, sources, siblings, evidence } = data;
   const expert = isExpert(v);
   const sy = P.synthesis ?? {}, llm = sy.llm ?? {};
   const known = new Set<number>(sources.map((s: any) => Number(s.id)));
@@ -31,7 +31,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ code: 
   const tl = sy.timeline ?? {}, places: any[] = sy.places ?? [], u = sy.use ?? {}, reach: any[] = sy.reach ?? [], cost: any[] = sy.cost ?? [];
   const live = sources.filter((s: any) => s.state === "analysed");
   const outcomes = (sy.outcomes ?? []).filter((o: any) => o && (o.name || o.domain)).slice().sort((a: any, b: any) => String(a.domain ?? "").localeCompare(String(b.domain ?? "")) || a.sid - b.sid);
-  const quotesBySid = new Map<number, Quote[]>();
+  const quotesBySid = new Map<number, { lang: string; quotes: Quote[] }>(evidence.map((e: any) => [Number(e.id), { lang: e.language ?? "", quotes: Array.isArray(e.evidence) ? e.evidence : [] }]));
   return (
     <article>
       <div className="note uppercase tracking-wide text-[12px]">Deployment (project)</div>
@@ -168,7 +168,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ code: 
                     {outcomes.map((o: any, i: number) => (
                       <tr key={i}>
                         <td>{o.domain}</td>
-                        <td><b>{o.name}</b>{o.interpretation && <div className="text-muted text-[14px]">{o.interpretation}</div>}<details><summary className="!text-[13px]">Details</summary><Kv pairs={[["Measured by", o.measure], ["Population", o.population], ["Uncertainty", o.uncertainty], ["Notes", o.notes]]} /><Quotes qs={quotesBySid.get(o.sid) ?? []} lang="" /></details></td>
+                        <td><b>{o.name}</b>{o.interpretation && <div className="text-muted text-[14px]">{o.interpretation}</div>}<details><summary className="!text-[13px]">Details</summary><Kv pairs={[["Measured by", o.measure], ["Population", o.population], ["Uncertainty", o.uncertainty], ["Notes", o.notes]]} /><Quotes qs={(quotesBySid.get(o.sid)?.quotes ?? []).filter((q) => q.id === o.evidence_ref)} lang={quotesBySid.get(o.sid)?.lang ?? ""} /></details></td>
                         <td className="num">{o.value !== null && o.value !== undefined && o.value !== "" ? <>{fmtNum(o.value) || String(o.value)} <span className="text-muted">{o.unit}</span></> : <span className="na">in words</span>}</td>
                         <td>{o.comparison}</td><td>{o.timing}</td>
                         <td>{o.data_source === "developer_or_government_claim" ? <span className="ver ver-no" title="Not independently verified">Claim</span> : DATA_SOURCE[o.data_source] ?? o.data_source}</td>
@@ -179,7 +179,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ code: 
                   </tbody>
                 </table>
               </div>
-              <p className="note mt-1.5">Every row is one result one source reports; the same measure from two sources appears twice, each with its own source, so differences stay visible. Quotes are on each source's page.</p>
+              <p className="note mt-1.5">Every row is one result one source reports; the same measure from two sources appears twice, each with its own source, so differences stay visible.</p>
             </Sec>
           )}
         </>

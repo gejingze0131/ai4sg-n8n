@@ -28,11 +28,19 @@ export async function getProject(code: string, v: Viewer) {
   if (!project) return null;
   if (!project.analysed && !isExpert(v)) return null;
   const expert = isExpert(v);
-  const [sources, siblings] = await Promise.all([
+  const [sources, siblings, evidence] = await Promise.all([
     q(`SELECT id, extraction_id, state, headline, title_original, title_en, source_type, language, publisher, published, evidence_type, score, flags, text_level, text_chars, duplicate_of, project_method, project_reason,
               review_decision, reviewer, reviewed_at, pick, url
        FROM api.source_cards WHERE project_id = $1 ${expert ? "" : "AND state = 'analysed'"} ORDER BY id`, [project.id]),
     project.tool_code ? q(`SELECT code, name, countries, stage FROM api.project_cards c WHERE tool_code = $1 AND code <> $2 ${expert ? "" : "AND analysed"} ORDER BY updated_at DESC LIMIT 40`, [project.tool_code, code]) : Promise.resolve([]),
+    q(`SELECT id, language, fields->'evidence' AS evidence FROM api.source_detail WHERE project_id = $1 AND state = 'analysed'`, [project.id]),
   ]);
-  return { project, sources, siblings };
+  if (!expert) {
+    const open = new Set(sources.map((s) => Number(s.id)));
+    if (project.synthesis) project.synthesis = { ...project.synthesis, sources: (project.synthesis.sources ?? []).filter((s: any) => open.has(Number(s.sid))), source_ids: (project.synthesis.source_ids ?? []).filter((id: number) => open.has(Number(id))) };
+    for (const s of sources) delete s.reviewer;
+    delete project.old_reviewer;
+    delete project.old_review_comment;
+  }
+  return { project, sources, siblings, evidence };
 }
