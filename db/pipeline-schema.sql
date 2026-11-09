@@ -285,3 +285,156 @@ BEGIN
     WHERE so.id IN (SELECT (y->>'id')::bigint FROM jsonb_array_elements(COALESCE(plan->'sources', '[]')) y)
     ORDER BY (so.pick->>'selected')::boolean DESC, NULLIF(so.pick->>'rank', '')::int NULLS LAST, so.id;
 END $$ LANGUAGE plpgsql;
+
+-- ===== v19: the website (web/) =====
+-- The website owns users, jobs and the audit log (schema "web"); it reads the views in schema "api" (db/web-schema.sql) and
+-- changes the tables below only through these functions, so the same SQL serves the website and n8n.
+ALTER TABLE reviews ADD COLUMN IF NOT EXISTS reviewer_id TEXT;   -- web.users.id; older rows only have the typed name in "reviewer"
+CREATE INDEX IF NOT EXISTS reviews_reviewer_idx ON reviews (reviewer_id, created_at DESC) WHERE reviewer_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS extractions_source_latest_idx ON extractions (source_id, created_at DESC, id DESC);
+
+-- a Pass / Fail on a source: recorded against its latest extraction
+CREATE OR REPLACE FUNCTION ai4sg_save_review(p_source BIGINT, p_decision TEXT, p_comment TEXT, p_reviewer TEXT, p_reviewer_id TEXT)
+RETURNS TABLE (review_id INT, extraction_id BIGINT, decision TEXT, comment TEXT, reviewer TEXT, reviewed_at TIMESTAMPTZ) AS $$
+#variable_conflict use_column
+DECLARE x BIGINT;
+BEGIN
+  SELECT e.id INTO x FROM extractions e WHERE e.source_id = p_source ORDER BY e.created_at DESC, e.id DESC LIMIT 1;
+  IF x IS NULL THEN RAISE EXCEPTION 'source % has no analysis to review', p_source USING ERRCODE = 'P0002'; END IF;
+  RETURN QUERY
+    INSERT INTO reviews (extraction_id, decision, comment, reviewer, reviewer_id)
+    VALUES (x, p_decision, NULLIF(btrim(COALESCE(p_comment, '')), ''), NULLIF(btrim(COALESCE(p_reviewer, '')), ''), p_reviewer_id)
+    RETURNING id, extraction_id, decision, comment, reviewer, created_at;
+END $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+-- deployments left without sources disappear; the ids that still exist are the ones to summarise again (C3)
+CREATE OR REPLACE FUNCTION ai4sg_remove_empty_projects(p_ids BIGINT[]) RETURNS BIGINT[] AS $$
+DECLARE kept BIGINT[];
+BEGIN
+  DELETE FROM ai_projects p WHERE NOT EXISTS (SELECT 1 FROM source_projects sp WHERE sp.project_id = p.id);
+  SELECT COALESCE(array_agg(DISTINCT x), '{}') INTO kept FROM unnest(p_ids) x WHERE x IS NOT NULL AND EXISTS (SELECT 1 FROM ai_projects p WHERE p.id = x);
+  RETURN kept;
+END $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+-- move one source to another deployment (a reviewer's placement: the organiser leaves it alone afterwards)
+CREATE OR REPLACE FUNCTION ai4sg_move_source(p_source BIGINT, p_target TEXT, p_actor TEXT)
+RETURNS TABLE (code TEXT, name TEXT, project_ids BIGINT[]) AS $$
+#variable_conflict use_column
+DECLARE t ai_projects%ROWTYPE; old BIGINT;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM sources s WHERE s.id = p_source) THEN RAISE EXCEPTION 'source % not found', p_source USING ERRCODE = 'P0002'; END IF;
+  SELECT * INTO t FROM ai_projects a WHERE a.code = p_target;
+  IF t.id IS NULL THEN RAISE EXCEPTION 'project % not found', p_target USING ERRCODE = 'P0002'; END IF;
+  SELECT sp.project_id INTO old FROM source_projects sp WHERE sp.source_id = p_source;
+  INSERT INTO source_projects (source_id, project_id, method, reason)
+  VALUES (p_source, t.id, 'manual', 'Changed by a reviewer' || CASE WHEN COALESCE(p_actor, '') <> '' THEN ' (' || p_actor || ')' ELSE '' END)
+  ON CONFLICT ON CONSTRAINT source_projects_pkey DO UPDATE SET project_id = EXCLUDED.project_id, method = 'manual', reason = EXCLUDED.reason, created_at = now();
+  RETURN QUERY SELECT t.code, t.name, ai4sg_remove_empty_projects(ARRAY[t.id, old]);
+END $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+-- "not this project": the source gets a deployment of its own
+CREATE OR REPLACE FUNCTION ai4sg_detach_source(p_source BIGINT, p_actor TEXT)
+RETURNS TABLE (code TEXT, name TEXT, project_ids BIGINT[]) AS $$
+#variable_conflict use_column
+DECLARE t ai_projects%ROWTYPE; old BIGINT;
+BEGIN
+  SELECT sp.project_id INTO old FROM source_projects sp WHERE sp.source_id = p_source;
+  INSERT INTO ai_projects (name, implementing_org, countries, domain, summary)
+  SELECT COALESCE(NULLIF(e.fields->'project'->>'name', ''), s.project_guess, s.title, 'Unnamed project'), e.fields->'project'->>'implementing_org',
+         COALESCE(e.fields->'project'->'countries', jsonb_build_array(s.country)), s.domain, e.fields->>'headline'
+  FROM sources s LEFT JOIN LATERAL (SELECT x.fields FROM extractions x WHERE x.source_id = s.id ORDER BY x.created_at DESC, x.id DESC LIMIT 1) e ON true
+  WHERE s.id = p_source
+  RETURNING * INTO t;
+  IF t.id IS NULL THEN RAISE EXCEPTION 'source % not found', p_source USING ERRCODE = 'P0002'; END IF;
+  INSERT INTO source_projects (source_id, project_id, method, reason)
+  VALUES (p_source, t.id, 'manual', 'Changed by a reviewer' || CASE WHEN COALESCE(p_actor, '') <> '' THEN ' (' || p_actor || ')' ELSE '' END)
+  ON CONFLICT ON CONSTRAINT source_projects_pkey DO UPDATE SET project_id = EXCLUDED.project_id, method = 'manual', reason = EXCLUDED.reason, created_at = now();
+  RETURN QUERY SELECT t.code, t.name, ai4sg_remove_empty_projects(ARRAY[t.id, old]);
+END $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+-- every source of p_from moves into p_into; the old name is kept as an alias and the emptied deployment disappears
+CREATE OR REPLACE FUNCTION ai4sg_merge_projects(p_from TEXT, p_into TEXT, p_actor TEXT)
+RETURNS TABLE (code TEXT, name TEXT, project_ids BIGINT[]) AS $$
+#variable_conflict use_column
+DECLARE f ai_projects%ROWTYPE; t ai_projects%ROWTYPE;
+BEGIN
+  IF p_from = p_into THEN RAISE EXCEPTION 'a project cannot be merged into itself' USING ERRCODE = '22023'; END IF;
+  SELECT * INTO f FROM ai_projects a WHERE a.code = p_from;
+  SELECT * INTO t FROM ai_projects a WHERE a.code = p_into;
+  IF f.id IS NULL THEN RAISE EXCEPTION 'project % not found', p_from USING ERRCODE = 'P0002'; END IF;
+  IF t.id IS NULL THEN RAISE EXCEPTION 'project % not found', p_into USING ERRCODE = 'P0002'; END IF;
+  UPDATE ai_projects p SET updated_at = now(),
+         aliases = (SELECT COALESCE(jsonb_agg(DISTINCT a), '[]'::jsonb) FROM jsonb_array_elements_text(p.aliases || f.aliases || to_jsonb(ARRAY[f.name])) a WHERE lower(a) <> lower(p.name))
+  WHERE p.id = t.id;
+  UPDATE source_projects sp SET project_id = t.id, method = 'manual', created_at = now(),
+         reason = 'Merged by a reviewer' || CASE WHEN COALESCE(p_actor, '') <> '' THEN ' (' || p_actor || ')' ELSE '' END
+  WHERE sp.project_id = f.id;
+  RETURN QUERY SELECT t.code, t.name, ai4sg_remove_empty_projects(ARRAY[t.id]);
+END $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+-- one entry point for the n8n webhook ai4sg-project
+CREATE OR REPLACE FUNCTION ai4sg_project_change(p_action TEXT, p_source BIGINT, p_from TEXT, p_target TEXT, p_actor TEXT)
+RETURNS TABLE (code TEXT, name TEXT, project_ids BIGINT[]) AS $$
+BEGIN
+  IF p_action = 'detach' THEN RETURN QUERY SELECT * FROM ai4sg_detach_source(p_source, p_actor);
+  ELSIF p_action = 'move' THEN RETURN QUERY SELECT * FROM ai4sg_move_source(p_source, p_target, p_actor);
+  ELSIF p_action = 'merge' THEN RETURN QUERY SELECT * FROM ai4sg_merge_projects(p_from, p_target, p_actor);
+  ELSE RAISE EXCEPTION 'action must be detach, move or merge' USING ERRCODE = '22023';
+  END IF;
+END $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+-- what taking a run out would remove (the same selection ai4sg_forget_run uses)
+CREATE OR REPLACE FUNCTION ai4sg_forget_run_preview(p_run BIGINT) RETURNS JSONB AS $$
+DECLARE r runs%ROWTYPE; fin TIMESTAMPTZ;
+BEGIN
+  SELECT * INTO r FROM runs WHERE id = p_run;
+  IF r.id IS NULL THEN RAISE EXCEPTION 'run % not found', p_run USING ERRCODE = 'P0002'; END IF;
+  fin := COALESCE(r.finished_at, now());
+  RETURN jsonb_build_object(
+    'run_id', r.id, 'domain', r.domain, 'started_at', r.started_at, 'finished_at', r.finished_at,
+    'sources', (SELECT count(*) FROM sources s WHERE s.run_id = p_run),
+    'extractions', (SELECT count(*) FROM extractions x WHERE x.source_id IN (SELECT s.id FROM sources s WHERE s.run_id = p_run) OR x.created_at BETWEEN r.started_at AND fin),
+    'projects', (SELECT count(*) FROM ai_projects p WHERE p.created_at BETWEEN r.started_at AND fin),
+    'tools', (SELECT count(*) FROM ai_tools t WHERE t.created_at BETWEEN r.started_at AND fin));
+END $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+-- Take one run's results out of the database, as if the run had not happened. Nothing is destroyed: every row removed is copied
+-- first into schema "archive" (tables archive.run<N>_*). Returns the run's source ids, whose library folders the caller moves.
+CREATE OR REPLACE FUNCTION ai4sg_forget_run(p_run BIGINT) RETURNS JSONB AS $$
+DECLARE
+  r runs%ROWTYPE; fin TIMESTAMPTZ; src BIGINT[]; ext BIGINT[]; prj BIGINT[]; tl BIGINT[]; pre TEXT := 'run' || p_run;
+BEGIN
+  SELECT * INTO r FROM runs WHERE id = p_run FOR UPDATE;
+  IF r.id IS NULL THEN RAISE EXCEPTION 'run % not found', p_run USING ERRCODE = 'P0002'; END IF;
+  IF to_regclass('archive.' || pre || '_sources') IS NOT NULL THEN RAISE EXCEPTION 'run % was already taken out', p_run USING ERRCODE = '22023'; END IF;
+  fin := COALESCE(r.finished_at, now());
+  SELECT COALESCE(array_agg(id), '{}') INTO src FROM sources WHERE run_id = p_run;
+  SELECT COALESCE(array_agg(id), '{}') INTO ext FROM extractions x WHERE x.source_id = ANY(src) OR x.created_at BETWEEN r.started_at AND fin;
+  SELECT COALESCE(array_agg(id), '{}') INTO prj FROM ai_projects p WHERE p.created_at BETWEEN r.started_at AND fin;
+  SELECT COALESCE(array_agg(id), '{}') INTO tl FROM ai_tools t WHERE t.created_at BETWEEN r.started_at AND fin;
+
+  CREATE SCHEMA IF NOT EXISTS archive;
+  EXECUTE format('CREATE TABLE archive.%I AS SELECT * FROM runs WHERE id = $1', pre || '_runs') USING p_run;
+  EXECUTE format('CREATE TABLE archive.%I AS SELECT * FROM search_runs WHERE pipeline_run = $1', pre || '_search_runs') USING p_run;
+  EXECUTE format('CREATE TABLE archive.%I AS SELECT * FROM sources WHERE id = ANY($1) OR pick->>''run_id'' = $2', pre || '_sources') USING src, p_run::text;
+  EXECUTE format('CREATE TABLE archive.%I AS SELECT * FROM extractions WHERE id = ANY($1)', pre || '_extractions') USING ext;
+  EXECUTE format('CREATE TABLE archive.%I AS SELECT * FROM reviews WHERE extraction_id = ANY($1)', pre || '_reviews') USING ext;
+  EXECUTE format('CREATE TABLE archive.%I AS SELECT * FROM source_projects WHERE source_id = ANY($1) OR project_id = ANY($2)', pre || '_source_projects') USING src, prj;
+  EXECUTE format('CREATE TABLE archive.%I AS SELECT * FROM ai_projects WHERE id = ANY($1)', pre || '_ai_projects') USING prj;
+  EXECUTE format('CREATE TABLE archive.%I AS SELECT * FROM ai_tools WHERE id = ANY($1)', pre || '_ai_tools') USING tl;
+
+  CREATE TEMP TABLE f_ext_src ON COMMIT DROP AS SELECT DISTINCT source_id FROM extractions WHERE id = ANY(ext);
+  DELETE FROM extractions WHERE id = ANY(ext);                                        -- (reviews go with them)
+  UPDATE sources s SET status = 'passed'                                              -- older sources the run analysed: back to the queue
+  WHERE s.id IN (SELECT source_id FROM f_ext_src) AND NOT s.id = ANY(src) AND s.status = 'extracted'
+    AND NOT EXISTS (SELECT 1 FROM extractions x WHERE x.source_id = s.id);
+  UPDATE sources SET pick = NULL WHERE pick->>'run_id' = p_run::text;
+  UPDATE sources SET status = 'passed', duplicate_of = NULL WHERE duplicate_of = ANY(src);
+  DELETE FROM source_projects WHERE source_id = ANY(src) OR project_id = ANY(prj);
+  DELETE FROM sources WHERE id = ANY(src);
+  DELETE FROM ai_projects p WHERE p.id = ANY(prj) OR NOT EXISTS (SELECT 1 FROM source_projects sp WHERE sp.project_id = p.id);
+  DELETE FROM ai_tools t WHERE t.id = ANY(tl) AND NOT EXISTS (SELECT 1 FROM ai_projects p WHERE p.tool_id = t.id);
+  DELETE FROM search_runs WHERE pipeline_run = p_run;
+  DELETE FROM runs WHERE id = p_run;
+  RETURN jsonb_build_object('run_id', p_run, 'source_ids', to_jsonb(src), 'extractions', cardinality(ext), 'projects', cardinality(prj), 'tools', cardinality(tl));
+END $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;

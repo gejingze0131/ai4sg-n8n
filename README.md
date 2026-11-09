@@ -1,6 +1,8 @@
 # AI for Social Good · 专家 Skill 驱动的采集与解读管线（MVP）
 
-两位专家交付两个 Skill 文件，n8n 按它们去全网搜索、提取与解读，结果放到审计页供专家核对。
+两位专家交付两个 Skill 文件，n8n 按它们去全网搜索、提取与解读，结果在网站（`web/`）上供专家核对。
+
+**系统分两层**：网站（Next.js + Better Auth，端口 3001）拥有用户、权限、处理请求和操作日志，是所有人使用的入口；n8n 退到幕后做处理引擎，只接受网站带共享密钥的调用，把结果写进数据库并回报任务情况。网站的结构、开发和测试见 [web/README.md](web/README.md)。
 
 ```
 skills/search/SKILL.md ──► B · Search：英文任务先查领域的固定库（OpenAlex / Europe PMC / ERIC / World Bank / AEA RCT Registry），
@@ -16,11 +18,11 @@ skills/extraction/SKILL.md ─► C2 · Extract & Interpretation（Sol，读本�
                          C3 · Project Synthesis：把同一项目的所有来源合并成一条项目记录（每个数字注明出处 S12）
                          ③ Project Summaries：运行结束时重新汇总有变化的项目
                                   ▼
-                     审计页 http://localhost:5678/webhook/ai4sg-audit：项目 → 来源列表 → 单条来源审计；专家按来源审核
-A · Overview 负责把以上串起来：每次运行从“运行页”开始，在运行页上选领域、国家、语言、来源类型、深度解析多少条等。
+                     网站 http://localhost:3001：Dashboard 与项目地图 → 项目 → 来源；专家按来源审核
+A · Overview 负责把以上串起来：管理员在网站上发起运行（也保留本机的运行页），选领域、国家、语言、来源类型、深度解析多少条等。
 搜索之后是一条直线上的四个阶段，每个阶段是一个子工作流，前一个跑完才开始下一个（没事可做也会往下传）：
 ① Collect & Screen（下载 + Luna 初筛）→ ② Organise & Extract（Sol 整理与挑选 + C2）→ ③ Project Summaries（汇总）→ ④ Finish Run（统计）。
-D · Audit Page 是审计页的网页服务，常驻运行，不需要手动启动。
+D · Audit Page 提供各个 webhook（分析、初筛、整理、项目汇总等），常驻运行；旧审计页作为只读备份保留，只能在本机打开。
 ```
 
 ## 1. 运行前需要准备
@@ -40,16 +42,13 @@ open -e .env
 chmod +x setup.sh && ./setup.sh
 ```
 
-`open -e .env` 会用文本编辑器打开配置文件：在 `OPENAI_API_KEY=` 后面粘贴 key 并保存，再运行最后一行。
+`open -e .env` 会用文本编辑器打开配置文件：在 `OPENAI_API_KEY=` 后面粘贴 key，在 `ADMIN_EMAIL=` 后面填第一个管理员的邮箱，保存，再运行最后一行。`setup.sh` 会生成其余密钥，并在第一次启动时建好管理员账号；初始密码在 `.env` 的 `ADMIN_INITIAL_PASSWORD`，登录后到 **My account** 改掉。这个邮箱别人注册不了。
 
-然后打开 http://localhost:5678 建管理员账号。之后每次运行：
+然后打开 http://localhost:3001 登录，**Admin → Start a run** 发起运行，进度和漏斗数字在 **Admin** 页看。n8n 编辑器 http://localhost:5678 只在本机可用（第一次打开时建 n8n 的 owner 账号），Executions 里能看到每一步的细节。
 
-- 打开运行页 http://localhost:5678/form/ai4sg-run ，选好设置，点 **Start run**；进度在 n8n 的 Executions 里看；
-- 或者在 n8n 里打开 **AI4SG · A Overview** 点 **Execute workflow**，会弹出同一个运行页，提交后可以在画布上实时看到每一步。
+**从旧版本升级**：执行 `./setup.sh --reimport`（会重建并重启容器，**不要在运行进行中做**）。之后 n8n 的 webhook 都需要密钥，旧审计页变成只读备份。如果之前开着分享，再执行一次 `./share.sh on`，公网地址就会转到网站。
 
-跑完后打开 http://localhost:5678/webhook/ai4sg-audit 看结果。
-
-运行页上的设置：
+运行设置：
 
 | 设置 | 含义 |
 |---|---|
@@ -168,7 +167,7 @@ docker compose exec -T postgres psql -U n8n -d ai4sg -c "SELECT p.code, p.name, 
 
 ## 分享给其他人（用这台 Mac 当服务器）
 
-通过 Tailscale Funnel 把这台 Mac 上的 n8n 开放到公网，固定地址形如 `https://你的Mac名.xxxx.ts.net`，免费，不用改路由器。
+通过 Tailscale Funnel 把这台 Mac 上的网站开放到公网（n8n 不对外），固定地址形如 `https://你的Mac名.xxxx.ts.net`，免费，不用改路由器。
 
 第一次准备：从 https://tailscale.com/download/mac 安装 Tailscale，打开并登录（Google 账号即可）。
 
@@ -178,12 +177,12 @@ cd ~/Projects/ai4sg-n8n
 ```
 
 第一次运行时，Tailscale 可能会打印一个链接，让你在网页上允许 Funnel；打开、同意后再运行一次 `./share.sh on`。
-成功后会打印运行页、审计页的公网地址，发给对方即可。演示结束运行 `./share.sh off`。
+成功后会打印公网地址，发给对方即可。演示结束运行 `./share.sh off`。
 
-- 对方只用两个页面：运行页（发起一次搜索）和审计页（看结果），不需要登录。
-- n8n 编辑器也会在公网地址上，但需要你的 n8n 管理员账号登录，请确认这个密码足够强。
+- 未登录也能看 Dashboard、地图和已分析的内容；注册时选“专家”可以审核和申请分析，选“访客”只能浏览。
 - 分享期间 Mac 要开机、联网、Docker Desktop 在运行；`share.sh on` 会阻止 Mac 自动睡眠，但合上盖子仍会睡眠（外接显示器时除外）。
-- 两个页面没有密码：分享期间拿到链接的任何人都能打开，每次在运行页提交都会用你的 OpenAI 额度。链接只发给需要的人，不演示时运行 `./share.sh off`。
+- 现在任何能打开网站的人都能注册成专家并申请分析，分析不设额度，每条都花 OpenAI 的钱。要收紧时在 `.env` 里设 `EXPERT_SIGNUP=approval`（专家由管理员批准），再 `docker compose up -d web`。不演示时运行 `./share.sh off`。
+- 设置了 `PUBLIC_URL` 时登录 Cookie 带 Secure：Chrome 在 http://localhost:3001 上可用，Safari 只能走公网地址。
 
 ## 3. 专家怎么改 Skill
 
@@ -210,9 +209,11 @@ cd ~/Projects/ai4sg-n8n
 
 文件保存后，下一次运行即生效，不用重启。
 
-## 4. 审计页
+## 4. 审核（网站）
 
-**审计的最小单位是来源，按项目呈现**（v18）。左侧列表是项目（部署）；点开是项目页：工具、部署信息、项目汇总，以及它的全部来源
+下面的功能都已搬到网站，专家使用说明见 `docs/USER_GUIDE.md`。n8n 上的旧审计页保留为只读备份（http://localhost:5678/webhook/ai4sg-audit）。
+
+**审计的最小单位是来源，按项目呈现**（v18）。项目列表里的项目（部署）点开是项目页：工具、部署信息、项目汇总，以及它的全部来源
 （已分析、排队中、重复）；点某条来源进入它自己的审计页（提取、逐条核对的引文、本地副本、Pass / Fail）。只有一条来源的项目不套项目页，
 点开直接是这条来源的审计页。项目页上显示“已审几条/共几条”；全部通过显示 ✓，有一条不通过显示 ✗。
 
@@ -242,7 +243,7 @@ cd ~/Projects/ai4sg-n8n
   领域取自找到它的那次运行。页面顶部 **Domain** 一排按钮（All domains / Healthcare / Public service …，数字是该领域的项目数）对整页生效：
   列表、顶部数字、图表、Runs 表、Not analysed yet 都只显示所选领域。排序可选：最新、最早、相关度高/低、领域、国家、名称；
   Not analysed yet 也可按初筛相关度、时间、领域、国家、来源类型排序。
-- **通过 / 不通过**：页面顶部填名字，每条来源的审计页底部点 Pass / Fail，可附评论。每次决定都存进 `reviews` 表（可改，页面显示最新一次），以后可作为标注数据使用。
+- **通过 / 不通过**：以专家身份登录，每条来源页底部点 Pass / Fail，可附评论。每次决定都存进 `reviews` 表（带 `reviewer_id`；可改，页面显示最新一次），以后可作为标注数据使用。
 
 ### 审计页上的标记
 
@@ -259,11 +260,11 @@ cd ~/Projects/ai4sg-n8n
 
 | 操作 | 命令 |
 |---|---|
-| 看日志 | `docker compose logs -f n8n` |
+| 看日志 | `docker compose logs -f web`、`docker compose logs -f n8n` |
 | 直接查数据 | `docker compose exec postgres psql -U n8n -d ai4sg -c "select * from extractions order by id desc limit 5"` |
 | 停止 / 启动 | `docker compose stop` / `docker compose up -d` |
 | 备份 | `docker compose exec -T postgres pg_dumpall -U postgres > backup.sql` |
-| 撤下一次运行（当作没跑过） | `./forget-run.sh 4` 先看会撤下什么，`./forget-run.sh 4 --yes` 执行。删除前每行都复制到数据库的 `archive` 模式（`archive.run4_*`），资料文件夹移到 `library-archive/run4/`，需要时可以手动恢复 |
+| 撤下一次运行（当作没跑过） | 网站上 **Runs → 那次运行 → Take out this run**，或命令行 `./forget-run.sh 4` 先看会撤下什么，`./forget-run.sh 4 --yes` 执行。删除前每行都复制到数据库的 `archive` 模式（`archive.run4_*`），资料文件夹移到 `library-archive/run4/`，需要时可以手动恢复 |
 
 务必备份 `.env`：其中的 `N8N_ENCRYPTION_KEY` 用来加密 n8n 保存的 API key。
 
@@ -272,7 +273,7 @@ cd ~/Projects/ai4sg-n8n
 ```
 ai4sg-n8n/
 ├── handoff.md                 交接文档：下一阶段的全栈网站（web/）
-├── web/                       【待建】全栈网站（Next.js + Better Auth），见 web/README.md 与 handoff.md
+├── web/                       全栈网站（Next.js + Better Auth），见 web/README.md
 ├── skills/                    专家交付物（接口）
 │   ├── search/SKILL.md
 │   ├── extraction/SKILL.md, examples/
@@ -285,8 +286,8 @@ ai4sg-n8n/
 ├── codex-runner/              Codex 搜索 agent 的容器（Dockerfile + server.mjs）
 ├── codex-runs/                每次 Codex 搜索的完整记录（含固定学术库的命中）
 ├── library/                   来源资料库：每条来源下载的网页/PDF 和抽出的文字
-├── library-archive/           forget-run.sh 撤下的运行的资料（按 run 分文件夹）
+├── library-archive/           撤下的运行的资料（按 run 分文件夹）
 ├── archive/                   旧材料（不进 git）：v1–v5 旧工作流、旧资料库 library-old-20261012、数据库备份
-├── db/                        建库脚本与表结构（sources, extractions, reviews, search_runs）
+├── db/                        建库脚本与表结构（管线表；web-schema.sql：网站读的 api 视图和数据库角色）
 ├── docker-compose.yml, .env.example, setup.sh, forget-run.sh
 ```

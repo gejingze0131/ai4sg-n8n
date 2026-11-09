@@ -9,13 +9,14 @@
 // the academic hits, Codex's full event log, its notes and downloads, and the final answer.
 import http from 'node:http';
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile, readFile, stat, rm, rename } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, stat, rm, rename, cp } from 'node:fs/promises';
 import { createHash, randomBytes } from 'node:crypto';
 import path from 'node:path';
 
 const PORT = Number(process.env.PORT || 8787);
 const RUNS = process.env.RUNS_DIR || '/runs';
 const LIBRARY = process.env.LIBRARY_DIR || '/library';
+const ARCHIVE = process.env.LIBRARY_ARCHIVE_DIR || '/library-archive';
 const TOOLS = process.env.TOOLS_DIR || '/app/tools';
 const PYTHON = process.env.PYTHON_BIN || 'python3';
 const CODEX = process.env.CODEX_BIN || 'codex';
@@ -497,8 +498,23 @@ http.createServer(async (req, res) => {
     } catch { return send(res, 404, { ok: false, error: 'not collected' }); }
   }
 
-  if (req.method !== 'POST' || !['/search', '/collect'].includes(url.pathname)) return send(res, 404, { ok: false, error: 'not found' });
+  if (req.method !== 'POST' || !['/search', '/collect', '/library-archive'].includes(url.pathname)) return send(res, 404, { ok: false, error: 'not found' });
   let t; try { t = await readBody(req); } catch (e) { return send(res, 400, { ok: false, error: e.message }); }
+
+  // a run taken out on the website: its folders go to library-archive/run<N>/ (two mounts, so copy first, then remove)
+  if (url.pathname === '/library-archive') {
+    const run = Number(t.run_id), ids = (Array.isArray(t.source_ids) ? t.source_ids : []).map(Number).filter(n => Number.isInteger(n) && n > 0);
+    if (!Number.isInteger(run) || run <= 0) return send(res, 400, { ok: false, error: 'run_id is required' });
+    let moved = 0;
+    for (const id of ids) {
+      const from = path.join(LIBRARY, String(id));
+      try { await stat(from); } catch { continue; }
+      await cp(from, path.join(ARCHIVE, `run${run}`, String(id)), { recursive: true });
+      await rm(from, { recursive: true });
+      moved++;
+    }
+    return send(res, 200, { ok: true, moved });
+  }
 
   if (url.pathname === '/collect') {
     if (!t.id || !t.url) return send(res, 400, { ok: false, error: 'id and url are required' });
