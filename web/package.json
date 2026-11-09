@@ -1,0 +1,46 @@
+{
+  "name": "ai4sg-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "node scripts/copy-assets.mjs",
+    "dev": "next dev -p 3001",
+    "prebuild": "node scripts/copy-assets.mjs",
+    "build": "next build",
+    "start": "next start -p 3001",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/noto-sans-bengali": "^5.3.0",
+    "@fontsource-variable/noto-sans-devanagari": "^5.3.0",
+    "@fontsource-variable/noto-sans-thai": "^5.3.0",
+    "@tailwindcss/postcss": "^4.3.5",
+    "better-auth": "^1.7.18",
+    "drizzle-orm": "^0.45.4",
+    "maplibre-gl": "^6.17.0",
+    "next": "^16.4.5",
+    "nodemailer": "^10.4.0",
+    "pg": "^8.23.1",
+    "postcss": "^8.5.32",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tailwindcss": "^4.3.5",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.0",
+    "@types/node": "^26.6.6",
+    "@types/nodemailer": "^8.0.2",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "drizzle-kit": "^0.31.11",
+    "typescript": "5.9",
+    "vitest": "^5.1.0"
+  }
+}
