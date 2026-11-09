@@ -16,7 +16,12 @@ command -v openssl >/dev/null || die "openssl not found."
 
 # ---------- 1. .env with random secrets ----------
 if [ ! -f .env ]; then say "Creating .env with random secrets"; cp .env.example .env; fi
-for var in N8N_ENCRYPTION_KEY RUNNERS_AUTH_TOKEN POSTGRES_PASSWORD POSTGRES_NON_ROOT_PASSWORD; do
+# settings of the website, added to an existing .env without touching the rest
+for var in BETTER_AUTH_SECRET N8N_WEBHOOK_SECRET WEB_DB_RO_PASSWORD WEB_DB_RW_PASSWORD ADMIN_INITIAL_PASSWORD; do
+  grep -q "^${var}=" .env || printf '%s=CHANGE_ME\n' "$var" >> .env
+done
+grep -q "^ADMIN_EMAIL=" .env || printf 'ADMIN_EMAIL=\n' >> .env
+for var in N8N_ENCRYPTION_KEY RUNNERS_AUTH_TOKEN POSTGRES_PASSWORD POSTGRES_NON_ROOT_PASSWORD BETTER_AUTH_SECRET N8N_WEBHOOK_SECRET WEB_DB_RO_PASSWORD WEB_DB_RW_PASSWORD ADMIN_INITIAL_PASSWORD; do
   if grep -q "^${var}=CHANGE_ME" .env; then
     sed "s|^${var}=CHANGE_ME.*|${var}=$(openssl rand -hex 24)|" .env > .env.tmp && mv .env.tmp .env
   fi
@@ -33,10 +38,11 @@ fi
 chmod 600 .env
 # read .env without sourcing it (values may contain characters the shell would interpret)
 envget() { grep -E "^$1=" .env | tail -1 | cut -d= -f2- | sed -e 's/^["'\'']//' -e 's/["'\'']$//'; }
-for v in N8N_VERSION GENERIC_TIMEZONE POSTGRES_USER POSTGRES_DB POSTGRES_NON_ROOT_USER POSTGRES_NON_ROOT_PASSWORD AI4SG_DB OPENAI_API_KEY OPENAI_BASE_URL AI4SG_PAGE_USER AI4SG_PAGE_PASSWORD PUBLIC_URL; do
+for v in N8N_VERSION GENERIC_TIMEZONE POSTGRES_USER POSTGRES_DB POSTGRES_NON_ROOT_USER POSTGRES_NON_ROOT_PASSWORD AI4SG_DB OPENAI_API_KEY OPENAI_BASE_URL AI4SG_PAGE_USER AI4SG_PAGE_PASSWORD PUBLIC_URL N8N_WEBHOOK_SECRET WEB_DB_RO_PASSWORD WEB_DB_RW_PASSWORD ADMIN_EMAIL; do
   export "$v=$(envget "$v")"
 done
 [ -n "$OPENAI_API_KEY" ] || warn "OPENAI_API_KEY is empty in .env. Setup continues, but the pipeline cannot run until you add it and run ./setup.sh --reimport."
+[ -n "$ADMIN_EMAIL" ] || warn "ADMIN_EMAIL is empty in .env: the website will have no administrator until you set it and run ./setup.sh again."
 
 # ---------- 2. database first ----------
 say "Starting Postgres (first run downloads ~1 GB of images)"
@@ -61,11 +67,18 @@ SQL
 for f in schema.sql pipeline-schema.sql; do
   docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -q -U "$POSTGRES_NON_ROOT_USER" -d "${AI4SG_DB:-ai4sg}" -f "/schema/$f"
 done
+# what the website reads and may call (roles, views, grants); needs the superuser
+apply_web_schema() {
+  docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -q -U "$POSTGRES_USER" -d "${AI4SG_DB:-ai4sg}" \
+    -v ro_pw="$WEB_DB_RO_PASSWORD" -v rw_pw="$WEB_DB_RW_PASSWORD" -f /schema/web-schema.sql >/dev/null
+}
+apply_web_schema
 
 # ---------- 4. n8n ----------
 say "Starting n8n ${N8N_VERSION} (first start runs database migrations and can take a few minutes)"
 say "Building the Codex search runner if needed (first time: a few minutes)"
-mkdir -p codex-runs library   # Codex search transcripts; downloaded sources (mounted into codex-runner)
+mkdir -p codex-runs library library-archive   # Codex search transcripts; downloaded sources and archived ones (mounted into codex-runner)
+say "Building the website if needed (first time: a few minutes)"
 docker compose up -d --build
 docker compose restart n8n >/dev/null   # in case it was stuck retrying with a missing database user
 for i in $(seq 1 150); do
@@ -85,6 +98,7 @@ else
   jesc() { esc "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"; }   # JSON-escape, then sed-escape
   rm -rf n8n/.render && mkdir -p n8n/.render
   sed -e "s|__AI4SG_DB__|$(jesc "${AI4SG_DB:-ai4sg}")|" \
+      -e "s|__N8N_WEBHOOK_SECRET__|$(jesc "$N8N_WEBHOOK_SECRET")|" \
       -e "s|__PG_USER__|$(jesc "$POSTGRES_NON_ROOT_USER")|" \
       -e "s|__PG_PASSWORD__|$(jesc "$POSTGRES_NON_ROOT_PASSWORD")|" \
       -e "s|__OPENAI_API_KEY__|$(jesc "${OPENAI_API_KEY:-CHANGE_ME}")|" \
@@ -109,15 +123,24 @@ else
   date > .setup-done
 fi
 
-BASE="${PUBLIC_URL:-http://localhost:5678/}"; BASE="${BASE%/}"
+# ---------- 6. the website: its own tables exist once it has started; then reviews.reviewer_id can point to them ----------
+say "Waiting for the website"
+for i in $(seq 1 90); do
+  curl -fsS "http://localhost:3001/api/health" >/dev/null 2>&1 && break
+  [ "$i" = 90 ] && die "The website did not start in time. Check: docker compose logs web --tail 50"
+  sleep 2
+done
+apply_web_schema
+
+SITE="${PUBLIC_URL:-http://localhost:3001/}"; SITE="${SITE%/}"
 cat <<EOF
 
-  n8n editor : $BASE   (first visit: create the owner account)
-  Run page   : $BASE/form/ai4sg-run
-  Audit page : $BASE/webhook/ai4sg-audit
+  Website    : $SITE
+  First sign-in: ${ADMIN_EMAIL:-(set ADMIN_EMAIL in .env)}, with the password in .env (ADMIN_INITIAL_PASSWORD). Change it on the site afterwards.
+  n8n editor : http://localhost:5678   (this Mac only; first visit: create the owner account)
+  Old pages  : http://localhost:5678/webhook/ai4sg-audit (read-only backup), http://localhost:5678/form/ai4sg-run
   Skills     : ./skills/search/SKILL.md, ./skills/extraction/SKILL.md (+ examples/). Edits apply on the next run.
 
-  To run: open the run page, choose countries, source types and limits, click "Start run".
-  (Or open "AI4SG · A Overview" in n8n and click "Execute workflow" to watch the run live.)
+  To start a run: sign in on the website, then Admin, Start a run.
   To let other people in over the internet: ./share.sh on   (stop with ./share.sh off)
 EOF

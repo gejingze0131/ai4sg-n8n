@@ -1,6 +1,6 @@
 # AI for Social Good · n8n self-hosted stack
 # Based on the official n8n-io/n8n-hosting "withPostgres" example (n8n 2.x, external task runners).
-#   docker compose up -d                 -> n8n + Postgres + task runner
+#   docker compose up -d                 -> website + n8n + Postgres + task runner
 #   docker compose --profile bi up -d    -> additionally starts Metabase for ad-hoc BI on the ai4sg DB
 
 volumes:
@@ -50,11 +50,9 @@ services:
       - N8N_HOST=${N8N_HOST}
       - N8N_PORT=5678
       - N8N_PROTOCOL=${N8N_PROTOCOL}
-      # the address people use; ./share.sh sets PUBLIC_URL when this Mac is shared through Tailscale Funnel
-      - WEBHOOK_URL=${PUBLIC_URL:-http://localhost:5678/}
-      - N8N_EDITOR_BASE_URL=${PUBLIC_URL:-http://localhost:5678/}
-      # requests arrive through one proxy (Tailscale Funnel) when shared
-      - N8N_PROXY_HOPS=1
+      # n8n is the processing engine behind the website: only this Mac and the website reach it
+      - WEBHOOK_URL=http://localhost:5678/
+      - N8N_EDITOR_BASE_URL=http://localhost:5678/
       - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE}
       - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
       - TZ=${GENERIC_TIMEZONE}
@@ -111,6 +109,40 @@ services:
     volumes:
       - ./codex-runs:/runs
       - ./library:/library        # downloaded pages and PDFs of every source, with their text
+      - ./library-archive:/library-archive   # the folders of runs taken out on the website
+
+  # The website: pages, API, accounts, permissions. It reads the views in schema api, and asks n8n (with the shared key) for anything
+  # that needs processing. The only service shared with other people (./share.sh).
+  web:
+    build:
+      context: ./web
+      args:
+        - NEXT_PUBLIC_MAP_STYLE_URL=${MAP_STYLE_URL:-https://tiles.openfreemap.org/styles/positron}
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL_RO=postgres://web_ro:${WEB_DB_RO_PASSWORD}@postgres:5432/${AI4SG_DB}
+      - DATABASE_URL_RW=postgres://web_rw:${WEB_DB_RW_PASSWORD}@postgres:5432/${AI4SG_DB}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+      - BETTER_AUTH_URL=${PUBLIC_URL:-http://localhost:3001}
+      - PUBLIC_URL=${PUBLIC_URL:-}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-}
+      - ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD:-}
+      - EXPERT_SIGNUP=${EXPERT_SIGNUP:-open}
+      - AUTH_REQUIRE_EMAIL_VERIFICATION=${AUTH_REQUIRE_EMAIL_VERIFICATION:-false}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+      - N8N_URL=http://n8n:5678
+      - N8N_WEBHOOK_SECRET=${N8N_WEBHOOK_SECRET}
+      - CODEX_RUNNER_URL=http://codex-runner:8787
+      - TZ=${GENERIC_TIMEZONE}
+    ports:
+      - 127.0.0.1:3001:3001
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   # Optional BI layer: docker compose --profile bi up -d  ->  http://localhost:3000
   metabase:

@@ -288,7 +288,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Run page answers + the Search Skill's country list -> one search task per country x language x source type\n// With a domain chosen, its module (skills/domains/<domain>.md) is appended to the Search Skill for every task.\nconst form = $('Run page').first().json;\nconst files = $('Load Search Skill').all();\nconst texts = $input.all();\nconst DOMAINS = {\"All domains\": \"\", \"Healthcare\": \"healthcare\", \"Public service\": \"public_service\", \"Agriculture\": \"agriculture\", \"Education\": \"education\"};\nconst domainLabel = String(form['Domain'] || 'All domains');\nconst domain = DOMAINS[domainLabel] || '';\nlet searchSkill = '', module = '';\ntexts.forEach((t, i) => {\n  const { fileName: name, directory: dir = '' } = files[i].binary.data;\n  if (dir.endsWith('/search') && name === 'SKILL.md') searchSkill = t.json.data;\n  else if (domain && dir.endsWith('/domains') && name === `${domain}.md`) module = t.json.data;\n});\nif (!searchSkill) throw new Error('skills/search/SKILL.md not found');\nif (domain && !module) throw new Error(`Domain \"${domainLabel}\": skills/domains/${domain}.md not found`);\nconst skill = searchSkill + (module ? `\\n\\n---\\n\\n# Domain for this run: ${domainLabel}\\n\\n${module}` : '');\nlet registry;\ntry { registry = JSON.parse(searchSkill.match(/```json countries\\s*([\\s\\S]*?)```/)[1]).countries; }\ncatch (e) { throw new Error('Search Skill: the \"json countries\" block is missing or is not valid JSON'); }\nconst list = (v) => (Array.isArray(v) ? v : String(v || '').split(/[,;\\n]+/)).map(s => String(s).trim()).filter(Boolean);\nconst num = (v, d) => (Number(v) > 0 ? Number(v) : d);\nconst known = (n) => registry.find(c => [c.name, c.iso].some(k => String(k || '').toLowerCase() === n.toLowerCase()));\n// a country missing from the Search Skill's list is still searched, in English only\nconst countries = [...new Map([...list(form['Countries']), ...list(form['Other countries'])]\n  .map(n => known(n) || { name: n, iso: '', local_languages: [] }).map(c => [c.name, c])).values()];\nif (!countries.length) throw new Error('Run page: choose at least one country');\nconst TYPES = {\"News\": \"news\", \"Government reports (PDF)\": \"gov_report\", \"Government websites\": \"gov_website\", \"Journal papers\": \"journal\", \"Conference reports\": \"conference_report\", \"Open-source code & data\": \"open_source\"};\nconst types = list(form['Source types']).map(t => TYPES[t]).filter(Boolean);\nconst langs = list(form['Search languages']);\nconst settings = {\n  domain, domain_label: domain ? domainLabel : '',\n  focus: form['Topic focus'] || '',\n  since_year: num(form['Published from (year)'], ''),\n  max_results: num(form['Results per search (target)'], 10),\n  max_sources: Number(form['Max sources to analyse in depth']) > 0 ? Number(form['Max sources to analyse in depth']) : 0,   // 0 = no budget: analyse all\n  min_relevance: Number((String(form['Relevance screen'] || '').match(/[\\d.]+/) || ['0.6'])[0]),\n  engine: String(form['Search engine'] || 'Codex').startsWith('Single') ? 'api' : 'codex',\n};\n// order: all countries first, then languages, then source types, so \"Max web searches\" drops whole source types from the end\nconst tasks = [];\nfor (const source_type of types)\n  for (const which of ['Local language', 'English']) if (langs.includes(which))\n    for (const c of countries)\n      for (const language of which === 'English' ? ['en'] : (c.local_languages || []))\n        tasks.push({ search_skill: skill, country: c.name, country_code: c.iso || '', language, source_type, ...settings });\nif (!tasks.length) throw new Error('Run page: nothing to search. Choose at least one source type and one language');\nreturn tasks.slice(0, num(form['Max web searches'], 6)).map((json) => ({ json }));\n"
+        "jsCode": "// Run page answers + the Search Skill's country list -> one search task per country x language x source type\n// With a domain chosen, its module (skills/domains/<domain>.md) is appended to the Search Skill for every task.\nconst form = $('Run Settings').first().json;\nconst files = $('Load Search Skill').all();\nconst texts = $input.all();\nconst DOMAINS = {\"All domains\": \"\", \"Healthcare\": \"healthcare\", \"Public service\": \"public_service\", \"Agriculture\": \"agriculture\", \"Education\": \"education\"};\nconst domainLabel = String(form['Domain'] || 'All domains');\nconst domain = DOMAINS[domainLabel] || '';\nlet searchSkill = '', module = '';\ntexts.forEach((t, i) => {\n  const { fileName: name, directory: dir = '' } = files[i].binary.data;\n  if (dir.endsWith('/search') && name === 'SKILL.md') searchSkill = t.json.data;\n  else if (domain && dir.endsWith('/domains') && name === `${domain}.md`) module = t.json.data;\n});\nif (!searchSkill) throw new Error('skills/search/SKILL.md not found');\nif (domain && !module) throw new Error(`Domain \"${domainLabel}\": skills/domains/${domain}.md not found`);\nconst skill = searchSkill + (module ? `\\n\\n---\\n\\n# Domain for this run: ${domainLabel}\\n\\n${module}` : '');\nlet registry;\ntry { registry = JSON.parse(searchSkill.match(/```json countries\\s*([\\s\\S]*?)```/)[1]).countries; }\ncatch (e) { throw new Error('Search Skill: the \"json countries\" block is missing or is not valid JSON'); }\nconst list = (v) => (Array.isArray(v) ? v : String(v || '').split(/[,;\\n]+/)).map(s => String(s).trim()).filter(Boolean);\nconst num = (v, d) => (Number(v) > 0 ? Number(v) : d);\nconst known = (n) => registry.find(c => [c.name, c.iso].some(k => String(k || '').toLowerCase() === n.toLowerCase()));\n// a country missing from the Search Skill's list is still searched, in English only\nconst countries = [...new Map([...list(form['Countries']), ...list(form['Other countries'])]\n  .map(n => known(n) || { name: n, iso: '', local_languages: [] }).map(c => [c.name, c])).values()];\nif (!countries.length) throw new Error('Run page: choose at least one country');\nconst TYPES = {\"News\": \"news\", \"Government reports (PDF)\": \"gov_report\", \"Government websites\": \"gov_website\", \"Journal papers\": \"journal\", \"Conference reports\": \"conference_report\", \"Open-source code & data\": \"open_source\"};\nconst types = list(form['Source types']).map(t => TYPES[t]).filter(Boolean);\nconst langs = list(form['Search languages']);\nconst settings = {\n  domain, domain_label: domain ? domainLabel : '',\n  focus: form['Topic focus'] || '',\n  since_year: num(form['Published from (year)'], ''),\n  max_results: num(form['Results per search (target)'], 10),\n  max_sources: Number(form['Max sources to analyse in depth']) > 0 ? Number(form['Max sources to analyse in depth']) : 0,   // 0 = no budget: analyse all\n  min_relevance: Number((String(form['Relevance screen'] || '').match(/[\\d.]+/) || ['0.6'])[0]),\n  engine: String(form['Search engine'] || 'Codex').startsWith('Single') ? 'api' : 'codex',\n};\n// order: all countries first, then languages, then source types, so \"Max web searches\" drops whole source types from the end\nconst tasks = [];\nfor (const source_type of types)\n  for (const which of ['Local language', 'English']) if (langs.includes(which))\n    for (const c of countries)\n      for (const language of which === 'English' ? ['en'] : (c.local_languages || []))\n        tasks.push({ search_skill: skill, country: c.name, country_code: c.iso || '', language, source_type, ...settings });\nif (!tasks.length) throw new Error('Run page: nothing to search. Choose at least one source type and one language');\nreturn tasks.slice(0, num(form['Max web searches'], 6)).map((json) => ({ json }));\n"
       },
       "id": "e5d1fefe-fe0d-5688-b0cd-94db1f31067a",
       "name": "Plan Search Tasks",
@@ -304,7 +304,7 @@
         "operation": "executeQuery",
         "query": "INSERT INTO runs (domain, settings) VALUES (NULLIF($1, ''), $2::jsonb) RETURNING id AS run_id, started_at",
         "options": {
-          "queryReplacement": "={{ [ $('Plan Search Tasks').first().json.domain, JSON.stringify({ ...$('Run page').first().json, tasks: $('Plan Search Tasks').all().map(t => [t.json.country, t.json.language, t.json.source_type].join(' x ')) }) ] }}"
+          "queryReplacement": "={{ [ $('Plan Search Tasks').first().json.domain, JSON.stringify({ ...$('Run Settings').first().json, tasks: $('Plan Search Tasks').all().map(t => [t.json.country, t.json.language, t.json.source_type].join(' x ')) }) ] }}"
         }
       },
       "id": "ee47f62b-a84b-5ca6-81ba-688a805f7102",
@@ -741,6 +741,103 @@
         }
       },
       "executeOnce": true
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai4sg-run-start",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "67bb435e-dc97-5d9a-a5b0-e38db31069fd",
+      "name": "Run Requested",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        220
+      ],
+      "webhookId": "1adb5c04-277e-5818-a532-67a4d76c6457",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgWebhookKey01",
+          "name": "AI4SG Webhook Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// One shape for both ways of starting a run: the run page (answers by field label) and the website (JSON, POST /webhook/ai4sg-run-start)\nconst t = $input.first().json;\nif (!t.body) return [{ json: t }];\nconst b = t.body;\nconst pick = (map, keys) => (Array.isArray(keys) ? keys : []).map(k => map[k]).filter(Boolean);\nreturn [{ json: {\n  'Domain': { healthcare: 'Healthcare', public_service: 'Public service', agriculture: 'Agriculture', education: 'Education' }[b.domain] || 'All domains',\n  'Countries': Array.isArray(b.countries) ? b.countries : [],\n  'Other countries': b.other_countries || '',\n  'Search languages': pick({ local: 'Local language', en: 'English' }, b.languages),\n  'Source types': pick({ news: 'News', gov_report: 'Government reports (PDF)', gov_website: 'Government websites', journal: 'Journal papers', conference_report: 'Conference reports', open_source: 'Open-source code & data' }, b.source_types),\n  'Topic focus': b.topic_focus || '',\n  'Published from (year)': b.since_year || '',\n  'Search engine': b.engine === 'api' ? 'Single API call (fast)' : 'Codex agent (multi-step, slower)',\n  'Max web searches': b.max_searches,\n  'Results per search (target)': b.results_per_search,\n  'Max sources to analyse in depth': b.max_analyse === null || b.max_analyse === undefined ? '' : b.max_analyse,\n  'Relevance screen': { broad: 'Broad (0.4)', balanced: 'Balanced (0.6)', strict: 'Strict (0.8)' }[b.screen_level] || 'Balanced (0.6)',\n  submittedAt: new Date().toISOString(), formMode: 'website', job_id: String(b.job_id || ''),\n} }];\n"
+      },
+      "id": "28f153cc-a7b3-5749-a3ad-48ecd0a9b660",
+      "name": "Run Settings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        120,
+        130
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://web:3001/api/internal/jobs/' + ($('Run Settings').first().json.job_id || '0') }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'running', execution_id: $execution.id }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "7629ed48-e186-5d90-a11e-a487fb633c8f",
+      "name": "Run Job Started",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        -120
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgWebhookKey01",
+          "name": "AI4SG Webhook Key"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://web:3001/api/internal/jobs/' + ($('Run Settings').first().json.job_id || '0') }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'done', execution_id: $execution.id, result: { run_id: $json.run_id, counts: $json.counts } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "ed2dda57-f3a7-5dc7-af36-0909ad2e3fee",
+      "name": "Run Job Done",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3220,
+        40
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgWebhookKey01",
+          "name": "AI4SG Webhook Key"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "executeOnce": true
     }
   ],
   "connections": {
@@ -748,7 +845,7 @@
       "main": [
         [
           {
-            "node": "Load Search Skill",
+            "node": "Run Settings",
             "type": "main",
             "index": 0
           }
@@ -881,6 +978,44 @@
         [
           {
             "node": "④ Finish Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Requested": {
+      "main": [
+        [
+          {
+            "node": "Run Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Settings": {
+      "main": [
+        [
+          {
+            "node": "Run Job Started",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Load Search Skill",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "④ Finish Run": {
+      "main": [
+        [
+          {
+            "node": "Run Job Done",
             "type": "main",
             "index": 0
           }

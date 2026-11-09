@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Share this Mac's n8n on the internet through Tailscale Funnel: a fixed https://<mac-name>.<tailnet>.ts.net address,
+# Share this Mac's website on the internet through Tailscale Funnel (n8n stays private): a fixed https://<mac-name>.<tailnet>.ts.net address,
 # no router or firewall changes. Other people only need a browser.
 #   ./share.sh on       start sharing, keep the Mac awake while shared
 #   ./share.sh off      stop sharing
@@ -32,30 +32,29 @@ print_addresses() {
   local base="${1%/}"
   cat <<EOF
 
-  Share these with the others (no login needed; anyone with the link can use them while shared):
-    Run page   : $base/form/ai4sg-run
-    Audit page : $base/webhook/ai4sg-audit
-  The n8n editor is also reachable at $base , behind your n8n owner login.
+  Share this address: $base
+  People register there as a visitor or an expert. The n8n editor stays on this Mac (http://localhost:5678).
 
 EOF
 }
 
 case "${1:-status}" in
   on)
-    curl -fsS http://localhost:5678/healthz >/dev/null 2>&1 \
-      || die "n8n is not running on this Mac. Start Docker Desktop, then run: docker compose up -d   (wait a minute, then retry)"
+    curl -fsS http://localhost:3001/api/health >/dev/null 2>&1 \
+      || die "The website is not running on this Mac. Start Docker Desktop, then run: docker compose up -d   (wait a minute, then retry)"
     host=$(tailnet_host) || true
     [ -n "${host:-}" ] || die "Tailscale is not signed in. Open the Tailscale app, sign in, then run this again."
     url="https://$host/"
 
     say "Opening $url (the first time, Tailscale may print a link to allow Funnel for your account: open it, approve, rerun)"
-    "$TS" funnel --bg --https=443 localhost:5678
+    "$TS" funnel --https=443 localhost:5678 off 2>/dev/null || true   # older versions of this script shared n8n itself
+    "$TS" funnel --bg --https=443 localhost:3001
 
     if [ "$(envget PUBLIC_URL)" != "$url" ]; then
-      say "Telling n8n its public address (restarts n8n, about a minute)"
+      say "Telling the website its public address (restarts it, about 20 seconds)"
       envset PUBLIC_URL "$url"
-      docker compose up -d n8n >/dev/null
-      for i in $(seq 1 90); do curl -fsS http://localhost:5678/healthz >/dev/null 2>&1 && break; sleep 2; done
+      docker compose up -d web >/dev/null
+      for i in $(seq 1 90); do curl -fsS http://localhost:3001/api/health >/dev/null 2>&1 && break; sleep 2; done
     fi
 
     # keep the Mac from sleeping while shared (a closed lid still sleeps unless an external display is attached)
@@ -67,9 +66,9 @@ case "${1:-status}" in
     print_addresses "$url"
     ;;
   off)
-    "$TS" funnel --https=443 localhost:5678 off 2>/dev/null || "$TS" funnel reset
+    "$TS" funnel --https=443 localhost:3001 off 2>/dev/null || "$TS" funnel reset
     [ -f "$PIDFILE" ] && { kill "$(cat "$PIDFILE")" 2>/dev/null || true; rm -f "$PIDFILE"; }
-    say "Stopped sharing. n8n keeps running locally at http://localhost:5678"
+    say "Stopped sharing. The website keeps running locally at http://localhost:3001"
     ;;
   status)
     "$TS" funnel status || true

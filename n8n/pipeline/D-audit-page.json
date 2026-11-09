@@ -152,7 +152,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ?format=geo -> map boundaries; ?format=json -> the data; otherwise the page with the data injected\nconst q = $('Audit Page').first().json.query || {};\nif (q.format === 'geo') return [{ json: { body: $input.first().json.data, type: 'application/json; charset=utf-8', cache: 'public, max-age=86400' } }];\nconst rows = $('Load Results').all().map(i => i.json).filter(r => r.source_id);\nconst runs = $('Load Runs').all().map(i => i.json).filter(r => r.id);\nconst projects = $('Load Projects').all().map(i => i.json).filter(p => p.id);\nif (q.format === 'json') return [{ json: { body: JSON.stringify({ projects, rows, runs }), type: 'application/json; charset=utf-8', cache: 'no-store' } }];\nconst safe = (x) => JSON.stringify(x).replace(/</g, '\\\\u003c');\nconst html = $input.first().json.data.replace('/*__DATA__*/[]', safe(rows)).replace('/*__RUNS__*/[]', safe(runs)).replace('/*__PROJECTS__*/[]', safe(projects));\nreturn [{ json: { body: html, type: 'text/html; charset=utf-8', cache: 'no-store' } }];\n"
+        "jsCode": "// ?format=geo -> map boundaries; ?format=json -> the data; otherwise the page with the data injected\nconst q = $('Audit Page').first().json.query || {};\nif (q.format === 'geo') return [{ json: { body: $input.first().json.data, type: 'application/json; charset=utf-8', cache: 'public, max-age=86400' } }];\nconst rows = $('Load Results').all().map(i => i.json).filter(r => r.source_id);\nconst runs = $('Load Runs').all().map(i => i.json).filter(r => r.id);\nconst projects = $('Load Projects').all().map(i => i.json).filter(p => p.id);\nif (q.format === 'json') return [{ json: { body: JSON.stringify({ projects, rows, runs }), type: 'application/json; charset=utf-8', cache: 'no-store' } }];\nconst safe = (x) => JSON.stringify(x).replace(/</g, '\\\\u003c');\nconst html = $input.first().json.data.replace('/*__DATA__*/[]', safe(rows)).replace('/*__RUNS__*/[]', safe(runs)).replace('/*__PROJECTS__*/[]', safe(projects)).replace('/*__READ_ONLY__*/false', 'true');\nreturn [{ json: { body: html, type: 'text/html; charset=utf-8', cache: 'no-store' } }];\n"
       },
       "id": "5fd25abf-5115-527e-848c-b1fa79630ffd",
       "name": "Render Page",
@@ -196,7 +196,8 @@
         "httpMethod": "POST",
         "path": "ai4sg-review",
         "responseMode": "responseNode",
-        "options": {}
+        "options": {},
+        "authentication": "headerAuth"
       },
       "id": "02745018-2569-592e-8a9b-ac74192d92f8",
       "name": "Review Submitted",
@@ -206,7 +207,13 @@
         0,
         560
       ],
-      "webhookId": "b73e5c00-3d57-50f2-a79b-dff1a7d995fd"
+      "webhookId": "b73e5c00-3d57-50f2-a79b-dff1a7d995fd",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgWebhookKey01",
+          "name": "AI4SG Webhook Key"
+        }
+      }
     },
     {
       "parameters": {
@@ -281,7 +288,8 @@
         "httpMethod": "POST",
         "path": "ai4sg-project",
         "responseMode": "responseNode",
-        "options": {}
+        "options": {},
+        "authentication": "headerAuth"
       },
       "id": "7de46b75-c29c-5137-954f-1619ef29e37a",
       "name": "Project Change",
@@ -291,7 +299,13 @@
         0,
         1040
       ],
-      "webhookId": "90de067b-8b53-5f61-86da-2a42ad83b65d"
+      "webhookId": "90de067b-8b53-5f61-86da-2a42ad83b65d",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgWebhookKey01",
+          "name": "AI4SG Webhook Key"
+        }
+      }
     },
     {
       "parameters": {
@@ -309,7 +323,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- detach / move one source; merge = move every source of project $5 into $3 and keep its name as an alias\nWITH old AS (SELECT project_id FROM source_projects WHERE source_id = $1),\nal AS (\n  UPDATE ai_projects p SET updated_at = now(),\n         aliases = (SELECT COALESCE(jsonb_agg(DISTINCT a), '[]'::jsonb) FROM jsonb_array_elements_text(p.aliases || f.aliases || to_jsonb(ARRAY[f.name])) a\n                    WHERE lower(a) <> lower(p.name))\n  FROM ai_projects f WHERE $2 = 'merge' AND p.code = $3 AND f.code = $5\n  RETURNING p.id, f.id AS from_id\n), merged AS (\n  UPDATE source_projects sp SET project_id = al.id, method = 'manual', reason = 'Merged on the audit page' || CASE WHEN $4 <> '' THEN ' by ' || $4 ELSE '' END,\n         created_at = now()\n  FROM al WHERE sp.project_id = al.from_id\n  RETURNING al.id AS project_id, al.from_id\n), src AS (\n  SELECT s.id, COALESCE(NULLIF(e.fields->'project'->>'name', ''), s.project_guess, s.title, 'Unnamed project') AS name,\n         e.fields->'project'->>'implementing_org' AS org, COALESCE(e.fields->'project'->'countries', jsonb_build_array(s.country)) AS countries,\n         s.domain, e.fields->>'headline' AS summary\n  FROM sources s LEFT JOIN LATERAL (SELECT fields FROM extractions x WHERE x.source_id = s.id ORDER BY created_at DESC LIMIT 1) e ON true\n  WHERE s.id = $1\n), new_p AS (\n  INSERT INTO ai_projects (name, implementing_org, countries, domain, summary)\n  SELECT name, org, countries, domain, summary FROM src WHERE $2 = 'detach' RETURNING id, code, name\n), target AS (   -- (rows inserted above are not visible to ai_projects in this statement, so carry code and name along)\n  SELECT id, code, name FROM new_p UNION ALL SELECT id, code, name FROM ai_projects WHERE $2 = 'move' AND code = $3\n), link AS (\n  INSERT INTO source_projects (source_id, project_id, method, reason)\n  SELECT $1, t.id, 'manual', 'Changed on the audit page' || CASE WHEN $4 <> '' THEN ' by ' || $4 ELSE '' END FROM target t, src\n  ON CONFLICT (source_id) DO UPDATE SET project_id = EXCLUDED.project_id, method = 'manual', reason = EXCLUDED.reason, created_at = now()\n  RETURNING project_id\n)\nSELECT t.code, t.name, t.id AS project_id, (SELECT project_id FROM old) AS old_project_id FROM link JOIN target t ON t.id = link.project_id\nUNION ALL\nSELECT p.code, p.name, p.id, NULL FROM ai_projects p WHERE $2 = 'merge' AND p.code = $3 AND EXISTS (SELECT 1 FROM merged)",
+        "query": "-- detach / move one source, or merge a project into another: the same database functions the website calls\nSELECT code, name, project_ids FROM ai4sg_project_change($2, $1::bigint, $5, $3, $4)",
         "options": {
           "queryReplacement": "={{ [ $json.id, $json.action, $json.target, $json.reviewer, $json.from ] }}"
         }
@@ -333,9 +347,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "DELETE FROM ai_projects p WHERE NOT EXISTS (SELECT 1 FROM source_projects sp WHERE sp.project_id = p.id);\nSELECT DISTINCT x AS project_id FROM unnest($1::bigint[]) x WHERE EXISTS (SELECT 1 FROM ai_projects p WHERE p.id = x)",
+        "query": "-- (the function above removed deployments left empty) the deployments to summarise again\nSELECT unnest($1::bigint[]) AS project_id",
         "options": {
-          "queryReplacement": "={{ [ '{' + [$('Save Project Change').first().json.project_id, $('Save Project Change').first().json.old_project_id].filter(Boolean).join(',') + '}' ] }}"
+          "queryReplacement": "={{ [ '{' + ($('Save Project Change').first().json.project_ids || []).join(',') + '}' ] }}"
         }
       },
       "id": "c4fb6b94-244b-51f4-9c91-62ed76e23bb8",
@@ -430,7 +444,8 @@
         "httpMethod": "GET",
         "path": "ai4sg-file",
         "responseMode": "responseNode",
-        "options": {}
+        "options": {},
+        "authentication": "headerAuth"
       },
       "id": "5dbb86c7-56f8-5dc5-969c-a64de483345a",
       "name": "File Requested",
@@ -440,7 +455,13 @@
         0,
         1440
       ],
-      "webhookId": "e0748d7a-a17f-52d8-a7ba-ae13281fa7d8"
+      "webhookId": "e0748d7a-a17f-52d8-a7ba-ae13281fa7d8",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgWebhookKey01",
+          "name": "AI4SG Webhook Key"
+        }
+      }
     },
     {
       "parameters": {
@@ -550,7 +571,8 @@
         "httpMethod": "POST",
         "path": "ai4sg-analyse",
         "responseMode": "responseNode",
-        "options": {}
+        "options": {},
+        "authentication": "headerAuth"
       },
       "id": "5fc6a074-0718-54a2-817b-a0e5a5f7eb26",
       "name": "Analyse Requested",
@@ -560,11 +582,17 @@
         0,
         1900
       ],
-      "webhookId": "c5adf245-da9e-5956-a09b-8e3c0f332ec3"
+      "webhookId": "c5adf245-da9e-5956-a09b-8e3c0f332ec3",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgWebhookKey01",
+          "name": "AI4SG Webhook Key"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "const b = $input.first().json.body || {};\nconst ids = [...new Set((Array.isArray(b.source_ids) ? b.source_ids : [b.source_id]).map(Number).filter(n => Number.isInteger(n) && n > 0))].slice(0, 30);\nif (!ids.length) throw new Error('no source ids');\nreturn [{ json: { ids, reviewer: String(b.reviewer || '').slice(0, 100), started_at: new Date().toISOString() } }];\n"
+        "jsCode": "const b = $input.first().json.body || {};\nconst ids = [...new Set((Array.isArray(b.source_ids) ? b.source_ids : [b.source_id]).map(Number).filter(n => Number.isInteger(n) && n > 0))].slice(0, 30);\nif (!ids.length) throw new Error('no source ids');\nreturn [{ json: { ids, reviewer: String(b.reviewer || '').slice(0, 100), started_at: new Date().toISOString(), job_id: String(b.job_id || '') } }];\n"
       },
       "id": "d319d342-073a-516e-825e-59977ecc3477",
       "name": "Check Analyse",
@@ -852,7 +880,8 @@
         "httpMethod": "POST",
         "path": "ai4sg-rescreen",
         "responseMode": "responseNode",
-        "options": {}
+        "options": {},
+        "authentication": "headerAuth"
       },
       "id": "0c395e2c-5cb3-5601-ba78-22aab634b9cd",
       "name": "Rescreen Requested",
@@ -862,11 +891,17 @@
         0,
         2400
       ],
-      "webhookId": "c506f3f3-1b77-5717-b1eb-78929d7a26f8"
+      "webhookId": "c506f3f3-1b77-5717-b1eb-78929d7a26f8",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgWebhookKey01",
+          "name": "AI4SG Webhook Key"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "const b = $input.first().json.body || {};\nconst domain = String(b.domain || '').replace(/[^a-z_]/g, '');\nreturn [{ json: { domain, limit: Math.min(300, Math.max(1, Number(b.limit) || 100)), min_relevance: Number(b.min_relevance) || 0.6 } }];\n"
+        "jsCode": "const b = $input.first().json.body || {};\nconst domain = String(b.domain || '').replace(/[^a-z_]/g, '');\nreturn [{ json: { domain, limit: Math.min(300, Math.max(1, Number(b.limit) || 100)), min_relevance: Number(b.min_relevance) || 0.6, job_id: String(b.job_id || '') } }];\n"
       },
       "id": "3e600260-e2a1-52b7-9b7c-b7acc38c11bb",
       "name": "Check Rescreen",
@@ -1029,7 +1064,8 @@
         "httpMethod": "POST",
         "path": "ai4sg-select",
         "responseMode": "responseNode",
-        "options": {}
+        "options": {},
+        "authentication": "headerAuth"
       },
       "id": "456dda6c-7e2f-5538-9606-f38bba089206",
       "name": "Select Requested",
@@ -1039,11 +1075,17 @@
         0,
         2760
       ],
-      "webhookId": "6ebd6c6e-e4e7-5380-ba01-f9a44d0ea79f"
+      "webhookId": "6ebd6c6e-e4e7-5380-ba01-f9a44d0ea79f",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgWebhookKey01",
+          "name": "AI4SG Webhook Key"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "const b = $input.first().json.body || {};\nreturn [{ json: { domain: String(b.domain || '').replace(/[^a-z_]/g, ''), max_sources: b.max === 0 || b.max === '0' ? 0 : Math.max(0, Number(b.max) || 10), dry_run: b.analyse === true ? 'false' : 'true' } }];\n"
+        "jsCode": "const b = $input.first().json.body || {};\nreturn [{ json: { domain: String(b.domain || '').replace(/[^a-z_]/g, ''), max_sources: b.max === 0 || b.max === '0' ? 0 : Math.max(0, Number(b.max) || 10), dry_run: b.analyse === true ? 'false' : 'true', job_id: String(b.job_id || '') } }];\n"
       },
       "id": "6a2e2d93-9082-5edd-96bd-749d9e985fd8",
       "name": "Check Select",
@@ -1177,6 +1219,365 @@
       ],
       "onError": "continueRegularOutput",
       "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://web:3001/api/internal/jobs/' + ($('Check Analyse').first().json.job_id || '0') }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'running', execution_id: $execution.id }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "9e38edf0-6bd8-5817-a3fc-0531655af6fa",
+      "name": "Analyse Job Started",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        1790
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgWebhookKey01",
+          "name": "AI4SG Webhook Key"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://web:3001/api/internal/jobs/' + ($('Check Analyse').first().json.job_id || '0') }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'done', execution_id: $execution.id }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "5be3a762-7ba3-56e7-a4cd-c08589b6179c",
+      "name": "Analyse Job Done",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        2010
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgWebhookKey01",
+          "name": "AI4SG Webhook Key"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://web:3001/api/internal/jobs/' + ($('Check Rescreen').first().json.job_id || '0') }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'running', execution_id: $execution.id }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "3ac0110a-9443-571e-a8b6-34da2777184f",
+      "name": "Rescreen Job Started",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        2290
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgWebhookKey01",
+          "name": "AI4SG Webhook Key"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://web:3001/api/internal/jobs/' + ($('Check Rescreen').first().json.job_id || '0') }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'done', execution_id: $execution.id }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "f6f897e0-02d4-51a9-a4e5-ada3ff807afd",
+      "name": "Rescreen Job Done",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        2510
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgWebhookKey01",
+          "name": "AI4SG Webhook Key"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://web:3001/api/internal/jobs/' + ($('Check Select').first().json.job_id || '0') }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'running', execution_id: $execution.id }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "2db9afed-1d22-5c36-a09e-e6d345376fa6",
+      "name": "Select Job Started",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        2650
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgWebhookKey01",
+          "name": "AI4SG Webhook Key"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://web:3001/api/internal/jobs/' + ($('Check Select').first().json.job_id || '0') }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'done', execution_id: $execution.id }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "e9806c41-27b0-57b6-a8d0-b46eab59371d",
+      "name": "Select Job Done",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        2870
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgWebhookKey01",
+          "name": "AI4SG Webhook Key"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "content": "**Project summaries** (`POST /webhook/ai4sg-resummarise` with `{project_ids, job_id}`): after a reviewer moves a source or merges projects on the website, C3 writes the summaries of the affected projects again.",
+        "width": 1200,
+        "height": 110
+      },
+      "id": "f048bc67-37fd-5f38-a9f0-fd1165ea91bd",
+      "name": "Note · resummarise",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        2930
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai4sg-resummarise",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "39536e75-144c-5201-a641-3b5a31649cc7",
+      "name": "Resummarise Requested",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        3120
+      ],
+      "webhookId": "458485f2-0d5d-5337-af2c-2285038bcc5c",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgWebhookKey01",
+          "name": "AI4SG Webhook Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = $input.first().json.body || {};\nconst ids = [...new Set((Array.isArray(b.project_ids) ? b.project_ids : []).map(Number).filter(n => Number.isInteger(n) && n > 0))].slice(0, 100);\nreturn [{ json: { ids, job_id: String(b.job_id || '') } }];\n"
+      },
+      "id": "2ba44814-4acb-52c9-a09b-b018aa9df1ec",
+      "name": "Check Resummarise",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        3120
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, projects: $json.ids.length }) }}",
+        "options": {}
+      },
+      "id": "43457222-e8a6-5b4b-aae0-30410a2ab498",
+      "name": "Respond Resummarise",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        3120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $('Check Resummarise').first().json.ids.map((project_id) => ({ json: { project_id } }));\n"
+      },
+      "id": "a4127d48-7934-5127-ac8c-ecdc92a1093b",
+      "name": "Projects to Summarise",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        3120
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "ai4sgProjSynth01"
+        },
+        "mode": "each",
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "project_id": "={{ $json.project_id }}"
+          },
+          "schema": [
+            {
+              "id": "project_id",
+              "displayName": "project_id",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "8272d110-a178-5f48-aefc-af16dc2712e5",
+      "name": "Summarise Requested Projects",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        3120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://web:3001/api/internal/jobs/' + ($('Check Resummarise').first().json.job_id || '0') }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'running', execution_id: $execution.id }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "39e9d634-9f33-5f92-a331-4cfa61e0c5a0",
+      "name": "Resummarise Job Started",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        3010
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgWebhookKey01",
+          "name": "AI4SG Webhook Key"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://web:3001/api/internal/jobs/' + ($('Check Resummarise').first().json.job_id || '0') }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'done', execution_id: $execution.id }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "a7a20d25-8549-5520-acf9-7bf8be0ccb67",
+      "name": "Resummarise Job Done",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        3230
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ai4sgWebhookKey01",
+          "name": "AI4SG Webhook Key"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "executeOnce": true
     }
   ],
   "connections": {
@@ -1411,7 +1812,17 @@
       "main": [
         [
           {
+            "node": "Analyse Job Started",
+            "type": "main",
+            "index": 0
+          },
+          {
             "node": "Sources to Analyse",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Analyse Job Done",
             "type": "main",
             "index": 0
           }
@@ -1539,7 +1950,17 @@
       "main": [
         [
           {
+            "node": "Rescreen Job Started",
+            "type": "main",
+            "index": 0
+          },
+          {
             "node": "Any to Rescreen?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Rescreen Job Done",
             "type": "main",
             "index": 0
           }
@@ -1583,7 +2004,17 @@
       "main": [
         [
           {
+            "node": "Select Job Started",
+            "type": "main",
+            "index": 0
+          },
+          {
             "node": "② Organise (and Analyse)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Select Job Done",
             "type": "main",
             "index": 0
           }
@@ -1595,6 +2026,60 @@
         [
           {
             "node": "③ Summaries After Select",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resummarise Requested": {
+      "main": [
+        [
+          {
+            "node": "Check Resummarise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Resummarise": {
+      "main": [
+        [
+          {
+            "node": "Respond Resummarise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Projects to Summarise": {
+      "main": [
+        [
+          {
+            "node": "Summarise Requested Projects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond Resummarise": {
+      "main": [
+        [
+          {
+            "node": "Resummarise Job Started",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Projects to Summarise",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Resummarise Job Done",
             "type": "main",
             "index": 0
           }
