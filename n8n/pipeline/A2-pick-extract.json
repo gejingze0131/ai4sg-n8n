@@ -1,0 +1,542 @@
+{
+  "id": "ai4sgPickExtr001",
+  "name": "AI4SG · ② Organise & Extract",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## ② Organise & Extract (stage 2 of a run, called by A)\n**Which sources**: every source of the domain that passed the screen and has readable text (this run's and earlier runs' queue; the domain is a tag, so sources found by another domain's run can be here too).\n**Organise (GPT-6 Sol, one call per run)** reads the screen's card of every queued source (title, authors, organisation, kind of source, deployment, key figures, evidence type, summary) and the known deployments and tools, and returns: (1) for each source the **deployment** (project) it is about, a known one (P-…) or a new one it defines, named *Tool — place/phase*, each deployment under its **tool** (T-…); (2) **duplicates**: the same document found twice (another URL, a preprint, a reprint): kept with the deployment but not analysed; (3) known deployments that are the same one (merged); (4) with an analysis budget (*Max sources to analyse*) and more sources than the budget, the **selection**: as many different deployments as possible, for each the source with the most first-hand, checkable facts, then the default order (stronger evidence, full text). Without a budget every source that is not a duplicate is analysed. If the call fails, the rule-based order is used and C2 links each source itself.\n**C2** extracts each chosen source, with its deployment as context. Sources not chosen stay queued, already placed in their deployment.",
+        "width": 1900,
+        "height": 250
+      },
+      "id": "ea8b5928-b55d-56f5-acef-ae1035dbb982",
+      "name": "Note · title",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -460
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "run_id"
+            },
+            {
+              "name": "domain"
+            },
+            {
+              "name": "max_sources"
+            },
+            {
+              "name": "dry_run"
+            }
+          ]
+        }
+      },
+      "id": "ddbc91e7-abde-51ef-80f3-8d8dd8b9788a",
+      "name": "Run Settings",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- every source in this domain that passed the screen and is not analysed yet (this run's and earlier runs' queue)\n-- (the domain is a tag: a source found by another domain's run waits here too when the screen tagged it with this domain)\nSELECT s.id AS source_id, s.run_id, s.country, s.source_type, s.screen_relevance, COALESCE(s.screen->>'project_name', s.project_guess, '') AS project_guess,\n       COALESCE(s.screen->>'implementing_org', '') AS org, COALESCE(s.text_chars, 0) AS text_chars, COALESCE(s.text_level, '') AS text_level,\n       COALESCE(s.screen->>'evidence_type', '') AS evidence_type, COALESCE(s.database, '') AS database,\n       COALESCE(s.screen->>'headline_en', s.title_en, s.title, '') AS headline, COALESCE(s.title, '') AS title, s.url,\n       COALESCE(s.screen->'card', '{}'::jsonb) AS card, COALESCE(s.screen->>'reason', '') AS screen_reason,\n       p.code AS placed_in, sp.method AS placed_by\nFROM sources s\nLEFT JOIN source_projects sp ON sp.source_id = s.id\nLEFT JOIN ai_projects p ON p.id = sp.project_id\nWHERE s.status = 'passed' AND COALESCE(s.text_chars, 0) >= 300\n  AND CASE WHEN $1 = '' THEN s.domain IS NULL ELSE $1 = ANY(COALESCE(s.domain_tags, ARRAY[s.domain])) END\nORDER BY s.screen_relevance DESC NULLS LAST, s.id",
+        "options": {
+          "queryReplacement": "={{ [ $json.domain || '' ] }}"
+        }
+      },
+      "id": "0c37f7a0-89ac-5b87-9cfc-8755abe92050",
+      "name": "Waiting Sources",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        240,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- the known deployments the queue may belong to: those with a source of this domain, or in a country of the queue\n-- (newest first, at most 300), each with its tool and up to 5 of its sources\nWITH q AS (SELECT DISTINCT country FROM sources WHERE id = ANY($2::bigint[]))\nSELECT p.id, p.code, p.name, p.aliases, p.implementing_org, p.countries, p.deployment, t.code AS tool_code, t.name AS tool_name,\n       (SELECT COALESCE(jsonb_agg(jsonb_build_object('sid', x.id, 'title', COALESCE(x.screen->>'headline_en', x.title_en, x.title, x.url),\n                                                     'status', x.status, 'type', x.source_type) ORDER BY x.id), '[]'::jsonb)\n        FROM (SELECT s.* FROM source_projects sp JOIN sources s ON s.id = sp.source_id WHERE sp.project_id = p.id ORDER BY s.id LIMIT 5) x) AS sources,\n       EXISTS (SELECT 1 FROM source_projects sp WHERE sp.project_id = p.id AND sp.method = 'manual') AS manual\nFROM ai_projects p LEFT JOIN ai_tools t ON t.id = p.tool_id\nWHERE $1 = '' OR EXISTS (SELECT 1 FROM source_projects sp JOIN sources s ON s.id = sp.source_id\n                         WHERE sp.project_id = p.id AND $1 = ANY(COALESCE(s.domain_tags, ARRAY[s.domain])))\n   OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(p.countries) c JOIN q ON lower(q.country) = lower(c))\nORDER BY p.updated_at DESC LIMIT 300",
+        "options": {
+          "queryReplacement": "={{ [ $('Run Settings').first().json.domain || '', '{' + $('Waiting Sources').all().map(i => i.json.source_id).filter(Boolean).join(',') + '}' ] }}"
+        }
+      },
+      "id": "ce78fc48-0ba5-59cb-bc68-2505103aa62a",
+      "name": "Known Projects",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        480,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT t.code, t.name, t.aliases, t.developer, (SELECT count(*) FROM ai_projects p WHERE p.tool_id = t.id) AS deployments\nFROM ai_tools t ORDER BY t.updated_at DESC LIMIT 500",
+        "options": {}
+      },
+      "id": "f42f1c16-1214-5bea-baf4-e438eabfc68c",
+      "name": "Known Tools",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        700,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "/skills/{search/SKILL.md,extraction/SKILL.md,domains/*.md}",
+        "options": {}
+      },
+      "id": "23c8aba3-69b3-5aa8-83f0-452a3cf87b28",
+      "name": "Load Skills",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        700,
+        240
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {}
+      },
+      "id": "be094bd3-263b-58e1-b465-4e973fedc621",
+      "name": "Skills to Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        920,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const STOP = new Set(['the','a','an','of','for','and','in','on','to','with','by','from','at','project','programme','program','pilot',\n  'initiative','system','platform','tool','app','application','ai','artificial','intelligence','based','using','study','trial',\n  'evaluation','scheme','model','national','smart','digital','new','phase','service','services']);\nconst toks = (s) => new Set(String(s || '').toLowerCase().normalize('NFKD').replace(/[^\\p{L}\\p{N}]+/gu, ' ').split(' ')\n  .filter(w => w && !STOP.has(w)));\nconst overlap = (a, b) => { const A = toks(a), B = toks(b); if (!A.size || !B.size) return 0;\n  let i = 0; A.forEach(w => { if (B.has(w)) i++; }); return i / Math.min(A.size, B.size); };\nconst sameCountry = (country, list) => !country || !Array.isArray(list) || !list.length ||\n  list.some(c => String(c).toLowerCase() === String(country).toLowerCase());\n// how strongly a source (project name guess, organisation, country) points at an existing project: 0..1\nfunction projectScore(guess, org, country, p) {\n  if (!sameCountry(country, p.countries)) return 0;\n  const names = [p.name, ...(Array.isArray(p.aliases) ? p.aliases : [])];\n  let s = Math.max(0, ...names.map(n => overlap(guess, n)));\n  if (org && p.implementing_org && overlap(org, p.implementing_org) >= 0.6) s = Math.min(1, s + 0.25);\n  return s;\n}\nconst guessKey = (g) => [...toks(g)].sort().join(' ');\n// Linking a source (or a project) to a known project: the name, the organisation, the places and the AI products all count.\nconst GENERIC = new Set(['cxr','chest','ray','xray','software','version','deep','learning','algorithm','algorithms','model','models','system',\n  'tool','cad','detection','reader','screening','computer','aided','assisted','insight','based']);\nconst prodToks = (list) => { const out = new Set(); (Array.isArray(list) ? list : [list]).forEach(x => toks(x).forEach(w => {\n  if (w.length >= 3 && !GENERIC.has(w) && !/^v?\\d[\\d.]*$/.test(w)) out.add(w); })); return out; };\nconst placeKeys = (places, fine) => new Set((Array.isArray(places) ? places : []).filter(pl => pl && (!fine || ['admin2', 'city', 'site'].includes(pl.level)))\n  .flatMap(pl => fine ? [pl.name] : [pl.name, pl.admin1]).filter(Boolean).map(x => String(x).toLowerCase().trim()));\nconst lc = (x) => String(x || '').toLowerCase().trim();\n// organisations match when they share at least two distinctive words, or one long distinctive word when a side has only one\nconst ORGSTOP = new Set(['ministry','department','health','university','hospital','centre','center','international','research','government',\n  'foundation','institute','organisation','organization','office','division','society','association','limited','ltd','inc','private']);\nfunction orgMatch(a, b) {\n  const A = [...toks(a)].filter(w => !ORGSTOP.has(w)), B = new Set([...toks(b)].filter(w => !ORGSTOP.has(w)));\n  const shared = A.filter(w => B.has(w));\n  return shared.length >= 2 || (shared.length === 1 && Math.min(A.length, B.size) === 1 && shared[0].length >= 5);\n}\nfunction linkScore(me, p) {\n  const sy = p.synthesis || {};\n  const pc = [...(p.countries || []), ...(sy.countries || [])].map(lc);\n  if (me.countries.length && pc.length && !me.countries.some(c => pc.includes(lc(c)))) return { score: 0, why: [] };\n  const names = [p.name, ...(p.aliases || []), ...(sy.names || [])].filter(Boolean);\n  let score = Math.max(0, ...names.map(n => overlap(me.name, n)));\n  const why = score >= 0.5 ? ['similar name'] : [];\n  const orgs = [p.implementing_org, ...(sy.orgs || [])].filter(Boolean);\n  if (me.org && orgs.some(o => orgMatch(me.org, o))) { score += 0.35; why.push('same organisation'); }\n  const fa = placeKeys(me.places, true), fb = placeKeys(sy.places, true);\n  if ([...fa].some(x => fb.has(x))) { score += 0.2; why.push('same place'); }\n  else { const a = placeKeys(me.places, false), b = placeKeys(sy.places, false); if ([...a].some(x => b.has(x))) { score += 0.1; why.push('same region'); } }\n  const pa = prodToks(me.products), pb = prodToks(sy.products || []);\n  if ([...pa].some(x => pb.has(x))) { score += 0.25; why.push('same AI product'); }\n  return { score: Math.min(1, Math.round(score * 100) / 100), why };\n}\n// the definition comes from the Extraction Skill (section \"One project, many sources\"), so experts can change it\nconst DEFAULT_DEFINITION = 'A project is one programme that puts AI into use for a social purpose: who runs it, what the AI does for whom, ' +\n  'and where. Several studies, reports or news about the same programme, its phases, sites and software versions, and several products ' +\n  'compared within it are ONE project. Unrelated organisations each adopting the same commercial product are different projects.';\nfunction projectDefinition(skillText) {\n  const m = String(skillText || '').match(/\\n## \\d+\\.\\s*One project, many sources[^\\n]*\\n([\\s\\S]*?)(?=\\n## |\\s*$)/);\n  return m ? m[1].trim() : DEFAULT_DEFINITION;\n}\nconst describe = (x) => [`Project: ${x.name || 'unnamed'}`, `Run by: ${x.org || 'not stated'}`, `Countries: ${(x.countries || []).join(', ') || 'not stated'}`,\n  `Places: ${[...new Set((x.places || []).map(pl => pl.name).filter(Boolean))].slice(0, 8).join(', ') || 'not stated'}`,\n  `AI products: ${(Array.isArray(x.products) ? x.products : [x.products]).filter(Boolean).join('; ') || 'not stated'}`,\n  `What it is: ${String(x.summary || '').slice(0, 900)}`].join('\\n');\nfunction judgePrompt(definition, me, cands) {\n  return `## Same project check\\nSources about the same project (deployment) are shown together to the experts, so they must be linked.\\n\\n` +\n    `### What counts as one project\\n${definition}\\n\\n### New item\\n${describe(me)}\\n\\n### Known projects (suggested because of: name, organisation, place or product)\\n` +\n    cands.map(c => `#### ${c.code} (${(c.why || []).join(', ') || 'similar'}; ${c.sources || 1} source${c.sources > 1 ? 's' : ''})\\n${describe(c)}`).join('\\n\\n') +\n    `\\n\\nIs the new item about the SAME project as one of the known projects, by the definition above? ` +\n    `Return same_as: that project's code (e.g. P-00012) or \"\" if none, and reason: one English sentence.`;\n}\nconst projectView = (p) => { const sy = p.synthesis || {}; return { code: p.code, id: p.id, name: p.name, sources: Number(p.sources) || 1,\n  org: p.implementing_org || (sy.orgs || [])[0] || '', countries: sy.countries || p.countries || [], places: sy.places || [],\n  products: sy.products || [], summary: (sy.llm && sy.llm.summary) || p.summary || '' }; };\n\n// The rule-based order (the fallback if the organiser fails, and the default order on ties): new projects first, one source per\n// project first, stronger evidence, full text, this run's, screen relevance, then countries and source types in turns.\nconst settings = $('Run Settings').first().json;\nconst max = Number(settings.max_sources) > 0 ? Number(settings.max_sources) : Infinity;\nconst runId = Number(settings.run_id);\nconst projects = $('Known Projects').all().map(i => i.json).filter(p => p.id);\nconst tools = $('Known Tools').all().map(i => i.json).filter(t => t.code);\nconst EV = { rct: 5, quasi_experimental: 4, observational: 3, pilot_report: 2, anecdotal: 1, none: 0 };\nconst GUESS = { journal: 3, conference_report: 3, gov_report: 2, ngo_report: 2 };\nconst ev = (s) => s.evidence_type in EV ? EV[s.evidence_type] : (GUESS[s.source_type] ?? 1);\nconst tier = (s) => [-ev(s), s.full ? 0 : 1, Number(s.run_id) === runId ? 0 : 1, -Math.round((Number(s.screen_relevance) || 0) * 10)];\nconst cmpTier = (a, b) => { const x = tier(a), y = tier(b); for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0; };\nconst pool = $('Waiting Sources').all().map(i => i.json).filter(s => s.source_id).map(s => {\n  const best = s.placed_in ? 1 : Math.max(0, ...projects.map(p => projectScore(s.project_guess, s.org, s.country, p)));\n  return { ...s, known: best >= 0.75, key: s.placed_in || guessKey(s.project_guess) || 'source-' + s.source_id, full: Number(s.text_chars) >= 3000 };\n}).sort((a, b) => cmpTier(a, b) || ((b.screen_relevance || 0) - (a.screen_relevance || 0)) || (a.source_id - b.source_id));\nif (!pool.length) return [{ json: { need: false } }];\n// many sources tie: within a tier take them in turns across country x source type, so no country or type is favoured by id order\nconst turn = new Map(), rr = new Map();\nfor (const s of pool) { const g = JSON.stringify([tier(s), s.country || '', s.source_type || '']); turn.set(g, (turn.get(g) || 0) + 1); rr.set(s.source_id, turn.get(g)); }\npool.sort((a, b) => cmpTier(a, b) || (rr.get(a.source_id) - rr.get(b.source_id)) || ((b.screen_relevance || 0) - (a.screen_relevance || 0)) || (a.source_id - b.source_id));\nconst fresh = pool.filter(s => !s.known), known = pool.filter(s => s.known);\nconst order = [], used = new Set(), keys = new Set();\nconst take = (s) => { if (!used.has(s.source_id)) { order.push(s); used.add(s.source_id); keys.add(s.key); } };\nfresh.forEach(s => { if (!keys.has(s.key)) take(s); }); fresh.forEach(take); known.forEach(take);\nconst budget = Number.isFinite(max) ? max : 0;\nconst cands = order.slice(0, 400);   // rule-based order first, so the cut (if any) keeps the strongest\nconst select = !!budget && cands.length > budget;\n// the prompt: shared rules (Search Skill 3b), the domain's \"What counts\", the experts' unit of analysis (Extraction Skill 10)\nconst files = $('Load Skills').all(), texts = $('Skills to Text').all();\nlet shared = '', module = '', unit = '';\ntexts.forEach((t, i) => {\n  const { fileName: name, directory: dir = '' } = files[i].binary.data;\n  const txt = String(t.json.data || '');\n  if (dir.endsWith('/search') && name === 'SKILL.md') { const m = txt.match(/## 3b\\.[\\s\\S]*?(?=\\n## \\d)/); shared = m ? m[0] : ''; }\n  else if (dir.endsWith('/extraction') && name === 'SKILL.md') { const m = txt.match(/## 10\\.[\\s\\S]*?(?=\\n## \\d|$)/); unit = m ? m[0] : ''; }\n  else if (settings.domain && dir.endsWith('/domains') && name === `${settings.domain}.md`) { const m = txt.match(/## 1\\.[\\s\\S]*?(?=\\n## 2\\.)/); module = m ? m[0] : ''; }\n});\nconst line = (x) => {\n  const c = x.card || {};\n  const figs = (Array.isArray(c.key_figures) ? c.key_figures : []).slice(0, 5).join('; ');\n  return `[S${x.source_id}] ${x.country} · ${c.source_kind || x.source_type} · ${c.primary_source === false ? 'secondary (reports others\\' work)' : c.primary_source === true ? 'primary (first-hand)' : 'primary?'} · ` +\n    `text: ${x.full ? 'full' : 'abstract only'} · evidence: ${x.evidence_type || 'not judged'}${x.placed_in ? ` · now in ${x.placed_in}${x.placed_by === 'manual' ? ' (placed by a reviewer: keep)' : ''}` : ''}\\n` +\n    `  Title: ${c.title_en || x.headline || x.title}\\n  URL: ${String(x.url || '').slice(0, 160)}\\n` +\n    (c.authors || c.organisation ? `  By: ${[c.authors, c.organisation].filter(Boolean).join(' · ')}${c.published ? ' · ' + c.published : ''}\\n` : '') +\n    `  Deployment: ${c.deployment || x.project_guess || 'not stated'}${x.org ? ' · run by ' + x.org : ''}\\n` +\n    `  AI method: ${c.ai_method || 'not judged'}\\n` +\n    (figs ? `  Key figures: ${figs}\\n` : '') +\n    `  Summary: ${String(c.summary || x.screen_reason || '').slice(0, 500)}`;\n};\nconst pline = (p) => {\n  const d = p.deployment || {};\n  const srcs = (Array.isArray(p.sources) ? p.sources : []).map(x => `[S${x.sid}] ${String(x.title || '').slice(0, 110)} (${x.status === 'extracted' ? 'analysed' : x.status === 'passed' ? 'queued' : x.status})`).join('; ');\n  return `${p.code} · ${p.name}${p.tool_code ? ` · tool ${p.tool_code} ${p.tool_name}` : ' · tool not set'}${p.implementing_org ? ' · ' + p.implementing_org : ''}` +\n    ` · ${(p.countries || []).join(', ') || 'country?'}${d.place ? ' · ' + d.place : ''}${d.phase ? ' · ' + d.phase : ''}${p.manual ? ' · has sources placed by a reviewer (do not merge)' : ''}\\n  Sources: ${srcs || 'none'}`;\n};\nconst tline = (t) => `${t.code} · ${t.name}${t.developer ? ' (' + t.developer + ')' : ''}${(t.aliases || []).length ? ' · also: ' + t.aliases.join(', ') : ''}`;\nconst prompt = `${shared}\\n\\n${module}\\n\\n${unit}\\n\\n## Organise task\\n` +\n  `${cands.length} sources have passed the relevance screen${settings.domain ? ' for this domain' : ''} and wait for the in-depth analysis ` +\n  `(an expensive reading of the whole source, one source at a time). Before it, organise them for the experts' catalogue of AI interventions.\\n\\n` +\n  `A. Deployment of each source (the experts' unit of analysis, see \"One project, many sources\" above). For every source give \"project\":\\n` +\n  `- the code of a known deployment (P-…, listed below) when the source is about that deployment; or\\n` +\n  `- the key of a new deployment you define in \"projects\" (keys N1, N2, …), named \"Tool — place/phase\" (e.g. \"Crop-doctor app — Punjab pilot\"), ` +\n  `with its tool, implementing organisation, country, place and phase; several sources about the same deployment share one key; or\\n` +\n  `- \"\" when the source is not about one specific deployment (a review or overview of many tools, a landscape report).\\n` +\n  `Every deployment belongs to a tool: a known tool (T-…, listed below) or a new one you define in \"tools\" (keys T1, T2, …) with its developer. ` +\n  `The same tool in another country or state, or a pilot and a later scale-up, are different deployments of one tool. When unsure whether two ` +\n  `sources are about the same deployment, keep them apart and say so in the reason. A source placed by a reviewer keeps its deployment.\\n` +\n  `B. Known deployments: if two listed deployments are the same one, return a merge {from, into}; if a known deployment has no tool or the ` +\n  `wrong one, return {project, tool} in \"retool\".\\n` +\n  `C. Duplicates: a source is a duplicate when it is the SAME document as another source (one paper on two sites, a preprint and its ` +\n  `published version, the same report or press release republished, a translation). Give \"duplicate_of\": the id of the copy to keep ` +\n  `(the fullest text, the original publisher; it can be a queued source or a source listed under a known deployment). A news story about ` +\n  `a report is NOT a duplicate of it: it is another source about the deployment.\\n` +\n  (select\n    ? `D. Selection: only ${budget} sources can be analysed now; the rest stay queued (already placed in their deployment) for later. ` +\n      `Return in \"selected\" the ${budget} sources most worth analysing, most important first, each with a one-sentence reason:\\n` +\n      `1. Cover as many different deployments as possible; a deployment with no analysed source yet comes before more sources about a ` +\n      `deployment already analysed. Several sources about one deployment: choose the one with the most first-hand facts.\\n` +\n      `2. Prefer sources that give first-hand, checkable facts about real use: the original study, evaluation, programme report, ` +\n      `implementer's or developer's own report or official data rather than news or blogs repeating them; sources with numbers on adoption, ` +\n      `usage, reach, accuracy in real use, outcomes, costs or financing. A grey-literature programme report can be worth more than a ` +\n      `journal article about a small research-station test.\\n` +\n      `3. When two sources are otherwise similar, use the default order: stronger evidence (randomised trial, quasi-experiment, analysis of ` +\n      `real use, pilot report, announcement), then the full text over an abstract only.\\n` +\n      `4. Keep a balance across countries when the choice is otherwise close.\\n` +\n      `5. Leave out sources that do not seem to meet the rules above (no real use in the country, no substantive AI, outside the domain), even ` +\n      `if that means choosing fewer than ${budget}. \"AI method: none\" means the screen found no learned model (a mechanistic or statistical ` +\n      `model, thresholds, fixed rules): never select it. \"AI method: not stated\" comes after sources that name their AI method, unless the ` +\n      `deployment is clearly an AI tool (e.g. a known AI app or chatbot). Never select a duplicate.\\n` +\n      `For every source not selected, give in its \"note\" a short reason (at most 12 words, e.g. \"news repeating S123\", \"no figures, announcement only\").\\n`\n    : `D. There is no selection to make: every source that is not a duplicate will be analysed. Do not return \"selected\".\\n`) +\n  `\\nReturn \"sources\" with one entry for EVERY source below: {id (the number after S), project, duplicate_of (an id or null), reason ` +\n  `(one short sentence: why this deployment, or why a duplicate)${select ? ', note' : ''}}; and \"tools\", \"projects\", \"retool\", \"merges\"` +\n  `${select ? ', \"selected\"' : ''} as described (empty lists when there is nothing to add).\\n\\n` +\n  `## Known tools (${tools.length})\\n${tools.map(tline).join('\\n') || 'none yet'}\\n\\n` +\n  `## Known deployments (${projects.length})\\n${projects.map(pline).join('\\n') || 'none yet'}\\n\\n` +\n  `## Queued sources (${cands.length})\\n` + cands.map(line).join('\\n\\n');\n// fallback: no grouping (C2 links each source itself), the rule-based order chooses\nconst fallback = cands.map((x, i) => ({ id: Number(x.source_id), project: x.placed_in || '', duplicate_of: null, reason: '',\n  selected: !budget || i < budget, rank: i + 1, pick_reason: '' }));\nreturn [{ json: { need: true, select, prompt, budget, ids: cands.map(x => Number(x.source_id)), placed: Object.fromEntries(cands.map(x => [x.source_id, x.placed_in || ''])),\n  manual: cands.filter(x => x.placed_by === 'manual').map(x => Number(x.source_id)),\n  known_codes: projects.map(p => p.code), manual_codes: projects.filter(p => p.manual).map(p => p.code), tool_codes: tools.map(t => t.code),\n  known_sids: projects.flatMap(p => (Array.isArray(p.sources) ? p.sources : []).map(x => Number(x.sid))), fallback } }];\n"
+      },
+      "id": "77cffa7d-1078-5dda-bc1f-2eb30f3f86bd",
+      "name": "Prepare Organisation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        940,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "n",
+              "leftValue": "={{ $json.need }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "33e25d6b-68e6-521d-bcb2-f5205242358a",
+      "name": "Anything Queued?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1160,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "hasOutputParser": true
+      },
+      "id": "ae9175b6-acd0-595f-a289-edb50b2fd1c4",
+      "name": "Organise (Sol)",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        1380,
+        -60
+      ],
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "gpt-6-sol"
+        },
+        "options": {
+          "reasoningEffort": "medium",
+          "timeout": 600000
+        }
+      },
+      "id": "b39513dd-37c3-5297-be35-b0f9391b76b7",
+      "name": "LLM (Sol)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        160
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "ai4sgOpenAiApi01",
+          "name": "AI4SG LLM (OpenAI-compatible)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"required\": [\n    \"sources\"\n  ],\n  \"properties\": {\n    \"tools\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"required\": [\n          \"key\",\n          \"name\"\n        ],\n        \"properties\": {\n          \"key\": {\n            \"type\": \"string\"\n          },\n          \"name\": {\n            \"type\": \"string\"\n          },\n          \"developer\": {\n            \"type\": \"string\"\n          },\n          \"aliases\": {\n            \"type\": \"array\",\n            \"items\": {\n              \"type\": \"string\"\n            }\n          }\n        }\n      }\n    },\n    \"projects\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"required\": [\n          \"key\",\n          \"name\",\n          \"tool\"\n        ],\n        \"properties\": {\n          \"key\": {\n            \"type\": \"string\"\n          },\n          \"name\": {\n            \"type\": \"string\"\n          },\n          \"tool\": {\n            \"type\": \"string\"\n          },\n          \"org\": {\n            \"type\": \"string\"\n          },\n          \"country\": {\n            \"type\": \"string\"\n          },\n          \"place\": {\n            \"type\": \"string\"\n          },\n          \"phase\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"retool\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"project\": {\n            \"type\": \"string\"\n          },\n          \"tool\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"merges\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"from\": {\n            \"type\": \"string\"\n          },\n          \"into\": {\n            \"type\": \"string\"\n          },\n          \"reason\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"sources\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"required\": [\n          \"id\",\n          \"project\"\n        ],\n        \"properties\": {\n          \"id\": {\n            \"type\": [\n              \"integer\",\n              \"string\"\n            ]\n          },\n          \"project\": {\n            \"type\": \"string\"\n          },\n          \"duplicate_of\": {\n            \"type\": [\n              \"integer\",\n              \"string\",\n              \"null\"\n            ]\n          },\n          \"reason\": {\n            \"type\": \"string\"\n          },\n          \"note\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"selected\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"required\": [\n          \"id\",\n          \"reason\"\n        ],\n        \"properties\": {\n          \"id\": {\n            \"type\": [\n              \"integer\",\n              \"string\"\n            ]\n          },\n          \"reason\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    }\n  }\n}"
+      },
+      "id": "d7b696a5-1881-543a-b0f6-1c8c1267f6d8",
+      "name": "Organisation Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1480,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check the organiser's answer against what was offered and turn it into a plan for ai4sg_apply_organisation (database).\n// Unknown codes, ids or keys are dropped; a source the answer leaves out keeps its deployment; a reviewer's placement is kept.\n// If the call failed, the rule-based order is used and no grouping is made (C2 links each source itself).\nconst P = $('Prepare Organisation').first().json, o = $json.output || {};\nconst num = (v) => Number(String(v ?? '').replace(/\\D/g, '')) || 0;\nconst offered = new Set(P.ids), arr = (v) => (Array.isArray(v) ? v : []);\nconst entries = arr(o.sources).filter(x => offered.has(num(x.id)));\nif (!entries.length) return [{ json: { method: 'rules (organiser failed: ' + String($json.error?.message || $json.error || 'no valid answer').slice(0, 120) + ')',\n  plan: { sources: P.fallback } } }];\nconst isCode = (c, pre) => new RegExp('^' + pre + '-\\\\d{5}$').test(c);\nconst tools = arr(o.tools).filter(t => t && t.key && t.name && !isCode(t.key, 'T')).map(t => ({ key: String(t.key), name: String(t.name).slice(0, 200),\n  developer: String(t.developer || '').slice(0, 200), aliases: arr(t.aliases).map(String).slice(0, 8) }));\nconst toolOk = (k) => P.tool_codes.includes(k) || tools.some(t => t.key === k);\nconst projects = arr(o.projects).filter(p => p && p.key && !isCode(p.key, 'P')).map(p => ({ key: String(p.key), name: String(p.name || '').slice(0, 300),\n  tool: toolOk(String(p.tool || '')) ? String(p.tool) : '', org: String(p.org || '').slice(0, 200), country: String(p.country || '').slice(0, 80),\n  place: String(p.place || '').slice(0, 200), phase: String(p.phase || '').slice(0, 200), domain: '' }));\nconst projOk = (k) => P.known_codes.includes(k) || projects.some(p => p.key === k);\nconst merges = arr(o.merges).filter(m => P.known_codes.includes(m.from) && P.known_codes.includes(m.into) && m.from !== m.into\n  && !P.manual_codes.includes(m.from) && !P.manual_codes.includes(m.into)).map(m => ({ from: m.from, into: m.into, reason: String(m.reason || '').slice(0, 600) }));\nconst retool = arr(o.retool).filter(r => P.known_codes.includes(r.project) && toolOk(String(r.tool || '')));\n// duplicates: the original must be another offered source or a source of a known deployment; chains end at the root, cycles keep the lower id\nconst by = new Map(); entries.forEach(x => { if (!by.has(num(x.id))) by.set(num(x.id), x); });\nconst dupOf = new Map();\nby.forEach((x, id) => { const d = num(x.duplicate_of); if (d && d !== id && (offered.has(d) || P.known_sids.includes(d))) dupOf.set(id, d); });\nconst root = (id) => { const seen = new Set([id]); let r = id; while (dupOf.has(r) && !seen.has(dupOf.get(r))) { r = dupOf.get(r); seen.add(r); }\n  return dupOf.has(r) && seen.has(dupOf.get(r)) ? Math.min(...seen) : r; };\nconst finalDup = new Map(); dupOf.forEach((_, id) => { const r = root(id); if (r !== id) finalDup.set(id, r); });\n// selection: the organiser's order; without a budget every non-duplicate in the rule-based order\nconst notes = new Map(entries.map(x => [num(x.id), String(x.note || '').slice(0, 200)]));\nlet chosen = [];\nif (P.select) {\n  const seen = new Set();\n  for (const x of arr(o.selected)) { const id = num(x.id);\n    if (offered.has(id) && !finalDup.has(id) && !seen.has(id) && chosen.length < P.budget) { seen.add(id); chosen.push({ id, reason: String(x.reason || '').slice(0, 400) }); } }\n  if (!chosen.length) chosen = P.fallback.filter(f => !finalDup.has(f.id)).slice(0, P.budget).map(f => ({ id: f.id, reason: 'rule-based order (the organiser chose nothing)' }));\n} else chosen = P.ids.filter(id => !finalDup.has(id)).map(id => ({ id, reason: '' }));\nconst rank = new Map(chosen.map((c, i) => [c.id, i + 1])), why = new Map(chosen.map(c => [c.id, c.reason]));\nconst sources = P.ids.map(id => { const x = by.get(id);\n  const manual = P.manual.includes(id);\n  let project = x ? String(x.project || '') : P.placed[id] || '';\n  if (manual || (project && !projOk(project))) project = P.placed[id] || '';\n  return { id, project, duplicate_of: finalDup.get(id) || null, reason: x ? String(x.reason || '').slice(0, 600) : '',\n    selected: rank.has(id), rank: rank.get(id) || null,\n    pick_reason: finalDup.has(id) ? `duplicate of S${finalDup.get(id)}` : rank.has(id) ? why.get(id) : (notes.get(id) || 'not chosen within the analysis budget') }; });\nreturn [{ json: { method: P.select ? 'Sol: organised and selected' : 'Sol: organised (no budget: all analysed)', plan: { tools, projects, retool, merges, sources } } }];\n"
+      },
+      "id": "ae7ca8da-f008-5d38-8e0f-7795a002d70c",
+      "name": "Apply Organisation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- deployments, tools, duplicates and the selection, in the database (function in db/pipeline-schema.sql); returns the queue in order\nSELECT * FROM ai4sg_apply_organisation($1::jsonb, NULLIF($2, '')::bigint, $3)",
+        "options": {
+          "queryReplacement": "={{ [ JSON.stringify($json.plan), String($('Run Settings').first().json.run_id || ''), $json.method ] }}"
+        }
+      },
+      "id": "0a6a6314-eae5-5598-856f-a8acdb1358b6",
+      "name": "Save Organisation",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1820,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.selected === true && String($('Run Settings').first().json.dry_run) !== 'true' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "89207b3f-49f0-5947-bc5d-a84efde0f038",
+      "name": "Chosen?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        2040,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "ai4sgExtract0001"
+        },
+        "mode": "each",
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "source_id": "={{ $json.source_id }}",
+            "domain": "={{ $('Run Settings').first().json.domain || '' }}"
+          },
+          "schema": [
+            {
+              "id": "source_id",
+              "displayName": "source_id",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "domain",
+              "displayName": "domain",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "8f10f6c4-3f74-56a4-b4a6-17835b691221",
+      "name": "C2 · Extract & Interpretation",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2260,
+        40
+      ],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Run Settings": {
+      "main": [
+        [
+          {
+            "node": "Waiting Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Waiting Sources": {
+      "main": [
+        [
+          {
+            "node": "Known Projects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Known Projects": {
+      "main": [
+        [
+          {
+            "node": "Known Tools",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Known Tools": {
+      "main": [
+        [
+          {
+            "node": "Load Skills",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Skills": {
+      "main": [
+        [
+          {
+            "node": "Skills to Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skills to Text": {
+      "main": [
+        [
+          {
+            "node": "Prepare Organisation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Organisation": {
+      "main": [
+        [
+          {
+            "node": "Anything Queued?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anything Queued?": {
+      "main": [
+        [
+          {
+            "node": "Organise (Sol)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Organise (Sol)": {
+      "main": [
+        [
+          {
+            "node": "Apply Organisation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Organisation": {
+      "main": [
+        [
+          {
+            "node": "Save Organisation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Organisation": {
+      "main": [
+        [
+          {
+            "node": "Chosen?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chosen?": {
+      "main": [
+        [
+          {
+            "node": "C2 · Extract & Interpretation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM (Sol)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Organise (Sol)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Organisation Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Organise (Sol)",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Singapore"
+  },
+  "tags": []
+}

@@ -1,0 +1,341 @@
+{
+  "id": "ai4sgCollScrn001",
+  "name": "AI4SG · ① Collect & Screen",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## ① Collect & Screen (stage 1 of a run, called by A)\n**Which sources**: this run's new sources, plus up to 200 earlier sources of the domain whose download failed or gave no real text (each is downloaded at most twice).\n**Collect Materials** downloads what a reader needs into the source library (codex-runner `/collect`): for papers the open full text from Europe PMC or an open-access PDF; bot-check and redirect pages are discarded; when no full text can be had, the abstract is kept.\n**C1 · Screen** (GPT-6 Luna) checks every downloaded source against the definition of AI4SG and the domain: passed sources wait in the queue for stage ②, the others are set aside with the reason. A source that belongs to another domain as well (or instead) is tagged with it and waits in that domain's queue too. Sources whose screen failed are screened again here.",
+        "width": 1500,
+        "height": 200
+      },
+      "id": "c4f947aa-c1bc-56f0-9fa1-3e02346c033d",
+      "name": "Note · title",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "run_id"
+            },
+            {
+              "name": "domain"
+            },
+            {
+              "name": "min_relevance"
+            },
+            {
+              "name": "new_ids"
+            }
+          ]
+        }
+      },
+      "id": "189d58bd-7630-577f-a8cf-be6ec0d42a2b",
+      "name": "Run Settings",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- downloaded earlier but never screened, or the screen's answer did not fit the format: screened again now\nSELECT id AS source_id FROM sources\nWHERE status = 'collected' AND domain IS NOT DISTINCT FROM NULLIF($2, '') AND NOT (id = ANY($1::bigint[]))\nORDER BY id LIMIT 200",
+        "options": {
+          "queryReplacement": "={{ [ '{' + String($json.new_ids || '') + '}', $json.domain || '' ] }}"
+        }
+      },
+      "id": "59a2977b-acac-5b0e-a6a3-7c4e6e9d6b4e",
+      "name": "Unscreened Sources",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        240,
+        -160
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- this run's new sources, plus up to 200 earlier ones in this domain whose download failed, or that the first collector\n-- (before text_level existed) saved with no real text (a bot check, a redirect page, a stub): at most 2 tries each\nSELECT id AS source_id, url, doi, files, false AS retry FROM sources WHERE id = ANY($1::bigint[])\nUNION ALL\n(SELECT s.id, s.url, s.doi, '[]'::jsonb, true FROM sources s\n WHERE s.domain IS NOT DISTINCT FROM NULLIF($2, '') AND NOT (s.id = ANY($1::bigint[])) AND COALESCE(s.collect_tries, 0) < 2\n   AND (s.status = 'collect_failed'\n        OR (s.status IN ('passed', 'collected') AND s.text_level IS NULL AND COALESCE(s.text_chars, 0) < 3000)\n        OR (s.status = 'extracted' AND s.text_level IS NULL AND COALESCE(s.text_chars, 0) < 3000 AND EXISTS (\n              SELECT 1 FROM extractions e WHERE e.source_id = s.id AND e.status = 'filtered_out'\n                AND NOT EXISTS (SELECT 1 FROM reviews r WHERE r.extraction_id = e.id))))\n ORDER BY s.id LIMIT 200)",
+        "options": {
+          "queryReplacement": "={{ [ '{' + String($('Run Settings').first().json.new_ids || '') + '}', $('Run Settings').first().json.domain || '' ] }}"
+        }
+      },
+      "id": "dd4ec4a0-4b55-5858-a6e6-e98da42306bb",
+      "name": "Sources to Collect",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        240,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://codex-runner:8787/collect",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ id: $json.source_id, url: $json.url, doi: $json.doi || '', files: $json.files || [] }) }}",
+        "options": {
+          "timeout": 600000,
+          "batching": {
+            "batch": {
+              "batchSize": 4,
+              "batchInterval": 0
+            }
+          }
+        }
+      },
+      "id": "b2a01b58-a268-50ef-9395-f1f7d01c2ae6",
+      "name": "Collect Materials",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        40
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- a retried source that now has real text goes back to the screen; an extraction that was judged on a bot-check page\n-- (and not reviewed yet) is dropped so the source is analysed again. A failed retry leaves the source as it was.\nWITH old AS (SELECT id, status FROM sources WHERE id = $1),\ndropped AS (\n  DELETE FROM extractions e USING old\n  WHERE $4::boolean AND $6::boolean AND e.source_id = old.id AND old.status = 'extracted' AND e.status = 'filtered_out'\n    AND NOT EXISTS (SELECT 1 FROM reviews r WHERE r.extraction_id = e.id)\n  RETURNING e.id)\nUPDATE sources s SET\n  collect_tries = COALESCE(s.collect_tries, 0) + 1, collected_at = now(),\n  files      = CASE WHEN $4::boolean OR NOT $6::boolean THEN $2::jsonb ELSE s.files END,\n  text_chars = CASE WHEN $4::boolean OR NOT $6::boolean THEN $3::int ELSE s.text_chars END,\n  text_level = CASE WHEN $4::boolean OR NOT $6::boolean THEN NULLIF($5, '') ELSE s.text_level END,\n  status = CASE WHEN $4::boolean AND (old.status <> 'extracted' OR (SELECT count(*) FROM dropped) > 0\n                                      OR NOT EXISTS (SELECT 1 FROM extractions e WHERE e.source_id = s.id)) THEN 'collected'\n                WHEN NOT $6::boolean AND NOT $4::boolean THEN 'collect_failed'\n                ELSE s.status END\nFROM old WHERE s.id = old.id\nRETURNING s.id AS source_id, s.status, s.text_chars",
+        "options": {
+          "queryReplacement": "={{ [ $('Sources to Collect').item.json.source_id, JSON.stringify($json.files || [{ url: $('Sources to Collect').item.json.url, kind: 'main', error: $json.error?.message || $json.error || 'download failed' }]), $json.text_chars || 0, $json.ok === true, $json.text_level || '', $('Sources to Collect').item.json.retry === true ] }}"
+        }
+      },
+      "id": "73d6b468-42c9-555c-b746-6ebc8b4a9392",
+      "name": "Save Materials",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        700,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ok",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "collected",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "d20a9ae1-4aa3-5db8-8909-db032fd8ca1d",
+      "name": "Downloaded?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        920,
+        40
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// the sources just downloaded, plus earlier ones still waiting for a screen\nconst seen = new Set(), out = [];\nfor (const x of [...$input.all(), ...$('Unscreened Sources').all()].map(i => i.json))\n  if (x.source_id && !seen.has(String(x.source_id))) { seen.add(String(x.source_id)); out.push({ json: { source_id: x.source_id } }); }\nreturn out;\n"
+      },
+      "id": "24165e77-3ad8-5378-864d-2bce0c88966c",
+      "name": "Plus Unscreened",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1030,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "ai4sgScreen00001"
+        },
+        "mode": "each",
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "source_id": "={{ $json.source_id }}",
+            "domain": "={{ $('Run Settings').first().json.domain || '' }}",
+            "min_relevance": "={{ $('Run Settings').first().json.min_relevance }}"
+          },
+          "schema": [
+            {
+              "id": "source_id",
+              "displayName": "source_id",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "domain",
+              "displayName": "domain",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "min_relevance",
+              "displayName": "min_relevance",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "a6c740ee-6d4c-5baa-9004-3694b9d6a4d2",
+      "name": "C1 · Screen",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1140,
+        40
+      ],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Run Settings": {
+      "main": [
+        [
+          {
+            "node": "Unscreened Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unscreened Sources": {
+      "main": [
+        [
+          {
+            "node": "Sources to Collect",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sources to Collect": {
+      "main": [
+        [
+          {
+            "node": "Collect Materials",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Materials": {
+      "main": [
+        [
+          {
+            "node": "Save Materials",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Materials": {
+      "main": [
+        [
+          {
+            "node": "Downloaded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Downloaded?": {
+      "main": [
+        [
+          {
+            "node": "Plus Unscreened",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plus Unscreened": {
+      "main": [
+        [
+          {
+            "node": "C1 · Screen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Singapore"
+  },
+  "tags": []
+}

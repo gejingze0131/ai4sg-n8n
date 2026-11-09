@@ -5,9 +5,9 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## A · AI4SG Overview\nClick **Execute workflow**: the **run page** opens. Choose countries, languages, source types and how many sources to analyse, then **Start run**. The same run page is always at /form/ai4sg-run (locally http://localhost:5678/form/ai4sg-run), behind the page login in `.env`.\nSearch (workflow B) and Extract & Interpretation (workflow C) run the two expert skills. Results go to the audit page (workflow D): http://localhost:5678/webhook/ai4sg-audit",
-        "width": 1980,
-        "height": 130
+        "content": "## A · AI4SG Overview\nClick **Execute workflow**: the **run page** opens. Choose the domain, countries, languages, source types and how many sources to analyse in depth, then **Start run**. The same run page is always at /form/ai4sg-run (locally http://localhost:5678/form/ai4sg-run).\n**Every candidate the search finds is kept** (nothing is cut): each is downloaded into the source library, screened cheaply, and the best ones are analysed in depth, **new projects first**. Screened sources that do not fit this run's budget wait as *queued* and are analysed first in the next run of the same domain. Each run's numbers (found, new, screened, analysed, queued) are in the `runs` table and on the audit page: http://localhost:5678/webhook/ai4sg-audit",
+        "width": 1900,
+        "height": 170
       },
       "id": "3ebfed2c-4da4-5dbb-8062-4421475b3ff3",
       "name": "Note · title",
@@ -15,14 +15,14 @@
       "typeVersion": 1,
       "position": [
         -60,
-        -440
+        -480
       ]
     },
     {
       "parameters": {
-        "content": "### ⚙️ Run page = this run's settings\n- Countries (+ other countries)\n- Search languages: local / English\n- Source types\n- Topic focus, published from (year)\n- Max web searches\n- Max results per search\n- Max sources to analyse\n- Relevance screen: broad / balanced / strict\n\nChosen each time; the skill files are not edited for a run.",
+        "content": "### ⚙️ Run page = this run's settings\n- Domain: all, or one domain module\n- Countries (+ other countries)\n- Search languages: local / English\n- Source types\n- Topic focus, published from (year)\n- Search engine: Codex agent / single API call\n- Max web searches\n- Results per search (a target, not a cap)\n- Max sources to analyse in depth\n- Relevance screen: broad / balanced / strict\n\nChosen each time; the skill files are not edited for a run.",
         "width": 400,
-        "height": 270,
+        "height": 290,
         "color": 5
       },
       "id": "0d145fca-c896-5121-990d-cad44994935d",
@@ -36,9 +36,9 @@
     },
     {
       "parameters": {
-        "content": "### 🧑‍🔬 Expert deliverables = the interface\n`skills/search/SKILL.md`: what counts as AI for Social Good; how to search each source type; local-language keywords; trusted sites; each country's ISO code and local languages.  → used by **B · Search** (and by the relevance screen in C)\n`skills/extraction/SKILL.md` + `skills/extraction/examples/`: the fields to extract, how to interpret them (cost, benefit, beneficiaries, strength of evidence …), and the experts' own worked extractions.  → used by **C · Extract & Interpretation**",
-        "width": 1560,
-        "height": 150,
+        "content": "### 🧑‍🔬 Expert deliverables = the interface\n`skills/search/SKILL.md`: what counts as AI for Social Good; how to search each source type; the fixed academic databases; local-language keywords; each country's ISO code and local languages.  → used by **B · Search** (and by the screen in C1)\n`skills/extraction/SKILL.md` + `skills/extraction/examples/`: the fields to extract, how to interpret them, and the experts' worked extractions.  → **C2 · Extract**\n`skills/domains/<domain>.md`: the domain chosen on the run page: scope, search terms, academic databases, 4 domain fields, outcome categories.  → added to both skills",
+        "width": 1500,
+        "height": 170,
         "color": 4
       },
       "id": "3ada0b89-c395-5c8a-a5f2-c3b74e745a48",
@@ -52,11 +52,51 @@
     },
     {
       "parameters": {
-        "authentication": "basicAuth",
+        "content": "### After the search: four stages in a straight line\nEach stage is its own sub-workflow; the next starts only when the previous has finished (even if it had nothing to do).\n**① Collect & Screen**: download this run's new sources (and earlier failed downloads) into the source library, then screen each one with GPT-6 Luna. Passed sources join the queue.\n**② Organise & Extract**: GPT-6 Sol organises the domain's whole queue in one call: each source into a deployment (project P-…) under its tool (T-…), duplicates marked, known deployments that are the same merged, and (with *Max sources to analyse*) the sources most worth analysing chosen. C2 then analyses the chosen sources (all, without a budget): extraction with the deployment as context, quote check.\n**③ Project Summaries**: re-summarise the deployments that got new sources (C3).\n**④ Finish Run**: count what happened and store it in `runs`.\nSources not analysed are listed on the audit page (*Not analysed yet*), where a reviewer can send them to the analysis.",
+        "width": 1300,
+        "height": 330,
+        "color": 6
+      },
+      "id": "13ef8727-4b18-5ecc-bf13-ec6a4cb21952",
+      "name": "Stages",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1900,
+        -480
+      ]
+    },
+    {
+      "parameters": {
         "formTitle": "AI4SG · Start a run",
-        "formDescription": "Choose what to search in this run. Each web search covers one country × language × source type (e.g. Bangladesh × Bengali × News). Sources collected in earlier runs are skipped. What counts as AI for Social Good, local keywords and extraction rules stay in the experts' skill files.\nResults: <a href=\"/webhook/ai4sg-audit\">audit page</a>",
+        "formDescription": "Choose what to search in this run. Each web search covers one country × language × source type (e.g. Bangladesh × Bengali × News). Every source found is kept; sources collected in earlier runs are skipped. Choosing a domain applies that domain's rules: what counts, where to search, the fields and outcomes to extract. These rules, local keywords and extraction rules stay in the experts' skill files.\nResults: <a href=\"/webhook/ai4sg-audit\">audit page</a>",
         "formFields": {
           "values": [
+            {
+              "fieldLabel": "Domain",
+              "fieldType": "radio",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "All domains"
+                  },
+                  {
+                    "option": "Healthcare"
+                  },
+                  {
+                    "option": "Public service"
+                  },
+                  {
+                    "option": "Agriculture"
+                  },
+                  {
+                    "option": "Education"
+                  }
+                ]
+              },
+              "defaultValue": "All domains",
+              "requiredField": true
+            },
             {
               "fieldLabel": "Countries",
               "fieldType": "checkbox",
@@ -130,12 +170,28 @@
             {
               "fieldLabel": "Topic focus",
               "fieldType": "text",
-              "placeholder": "Optional, e.g. health, agriculture, flood early warning"
+              "placeholder": "Optional, e.g. tuberculosis, rice pests, flood early warning"
             },
             {
               "fieldLabel": "Published from (year)",
               "fieldType": "number",
               "placeholder": "Optional, e.g. 2022"
+            },
+            {
+              "fieldLabel": "Search engine",
+              "fieldType": "radio",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Codex agent (multi-step, slower)"
+                  },
+                  {
+                    "option": "Single API call (fast)"
+                  }
+                ]
+              },
+              "defaultValue": "Codex agent (multi-step, slower)",
+              "requiredField": true
             },
             {
               "fieldLabel": "Max web searches",
@@ -144,16 +200,17 @@
               "requiredField": true
             },
             {
-              "fieldLabel": "Max results per search",
+              "fieldLabel": "Results per search (target)",
               "fieldType": "number",
               "defaultValue": "10",
               "requiredField": true
             },
             {
-              "fieldLabel": "Max sources to analyse",
+              "fieldLabel": "Max sources to analyse in depth",
               "fieldType": "number",
               "defaultValue": "10",
-              "requiredField": true
+              "requiredField": false,
+              "placeholder": "Empty = analyse every source that passes the screen"
             },
             {
               "fieldLabel": "Relevance screen",
@@ -184,7 +241,7 @@
           "respondWithOptions": {
             "values": {
               "respondWith": "text",
-              "formSubmittedText": "Run started. Searching and analysing takes 5 to 15 minutes. New results then appear on the audit page (this site's address + /webhook/ai4sg-audit, also linked at the top of the run page)."
+              "formSubmittedText": "Run started. Searching, downloading and analysing takes 10 to 30 minutes. New results then appear on the audit page (this site's address + /webhook/ai4sg-audit, also linked at the top of the run page), with this run's numbers."
             }
           }
         }
@@ -197,18 +254,12 @@
         0,
         40
       ],
-      "webhookId": "b362f1b7-4d26-50c1-9d45-09f9bcf907e8",
-      "credentials": {
-        "httpBasicAuth": {
-          "id": "ai4sgPageAuth001",
-          "name": "AI4SG Page Login"
-        }
-      }
+      "webhookId": "b362f1b7-4d26-50c1-9d45-09f9bcf907e8"
     },
     {
       "parameters": {
         "operation": "read",
-        "fileSelector": "/skills/search/SKILL.md",
+        "fileSelector": "/skills/{search/SKILL.md,domains/*.md}",
         "options": {}
       },
       "id": "bfb87cb0-6c07-5ceb-9624-eef88fbbce48",
@@ -237,7 +288,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Run page answers + the Search Skill's country list -> one search task per country x language x source type\nconst form = $('Run page').first().json;\nconst skill = $input.first().json.data;\nlet registry;\ntry { registry = JSON.parse(skill.match(/```json countries\\s*([\\s\\S]*?)```/)[1]).countries; }\ncatch (e) { throw new Error('Search Skill: the \"json countries\" block is missing or is not valid JSON'); }\nconst list = (v) => (Array.isArray(v) ? v : String(v || '').split(/[,;\\n]+/)).map(s => String(s).trim()).filter(Boolean);\nconst num = (v, d) => (Number(v) > 0 ? Number(v) : d);\nconst known = (n) => registry.find(c => [c.name, c.iso].some(k => String(k || '').toLowerCase() === n.toLowerCase()));\n// a country missing from the Search Skill's list is still searched, in English only\nconst countries = [...new Map([...list(form['Countries']), ...list(form['Other countries'])]\n  .map(n => known(n) || { name: n, iso: '', local_languages: [] }).map(c => [c.name, c])).values()];\nif (!countries.length) throw new Error('Run page: choose at least one country');\nconst TYPES = {\"News\": \"news\", \"Government reports (PDF)\": \"gov_report\", \"Government websites\": \"gov_website\", \"Journal papers\": \"journal\", \"Conference reports\": \"conference_report\", \"Open-source code & data\": \"open_source\"};\nconst types = list(form['Source types']).map(t => TYPES[t]).filter(Boolean);\nconst langs = list(form['Search languages']);\nconst settings = {\n  focus: form['Topic focus'] || '',\n  since_year: num(form['Published from (year)'], ''),\n  max_results: num(form['Max results per search'], 10),\n  max_sources: num(form['Max sources to analyse'], 10),\n  min_relevance: Number((String(form['Relevance screen'] || '').match(/[\\d.]+/) || ['0.6'])[0]),\n};\n// order: all countries first, then languages, then source types, so \"Max web searches\" drops whole source types from the end\nconst tasks = [];\nfor (const source_type of types)\n  for (const which of ['Local language', 'English']) if (langs.includes(which))\n    for (const c of countries)\n      for (const language of which === 'English' ? ['en'] : (c.local_languages || []))\n        tasks.push({ search_skill: skill, country: c.name, country_code: c.iso || '', language, source_type, ...settings });\nif (!tasks.length) throw new Error('Run page: nothing to search. Choose at least one source type and one language');\nreturn tasks.slice(0, num(form['Max web searches'], 6)).map((json) => ({ json }));\n"
+        "jsCode": "// Run page answers + the Search Skill's country list -> one search task per country x language x source type\n// With a domain chosen, its module (skills/domains/<domain>.md) is appended to the Search Skill for every task.\nconst form = $('Run page').first().json;\nconst files = $('Load Search Skill').all();\nconst texts = $input.all();\nconst DOMAINS = {\"All domains\": \"\", \"Healthcare\": \"healthcare\", \"Public service\": \"public_service\", \"Agriculture\": \"agriculture\", \"Education\": \"education\"};\nconst domainLabel = String(form['Domain'] || 'All domains');\nconst domain = DOMAINS[domainLabel] || '';\nlet searchSkill = '', module = '';\ntexts.forEach((t, i) => {\n  const { fileName: name, directory: dir = '' } = files[i].binary.data;\n  if (dir.endsWith('/search') && name === 'SKILL.md') searchSkill = t.json.data;\n  else if (domain && dir.endsWith('/domains') && name === `${domain}.md`) module = t.json.data;\n});\nif (!searchSkill) throw new Error('skills/search/SKILL.md not found');\nif (domain && !module) throw new Error(`Domain \"${domainLabel}\": skills/domains/${domain}.md not found`);\nconst skill = searchSkill + (module ? `\\n\\n---\\n\\n# Domain for this run: ${domainLabel}\\n\\n${module}` : '');\nlet registry;\ntry { registry = JSON.parse(searchSkill.match(/```json countries\\s*([\\s\\S]*?)```/)[1]).countries; }\ncatch (e) { throw new Error('Search Skill: the \"json countries\" block is missing or is not valid JSON'); }\nconst list = (v) => (Array.isArray(v) ? v : String(v || '').split(/[,;\\n]+/)).map(s => String(s).trim()).filter(Boolean);\nconst num = (v, d) => (Number(v) > 0 ? Number(v) : d);\nconst known = (n) => registry.find(c => [c.name, c.iso].some(k => String(k || '').toLowerCase() === n.toLowerCase()));\n// a country missing from the Search Skill's list is still searched, in English only\nconst countries = [...new Map([...list(form['Countries']), ...list(form['Other countries'])]\n  .map(n => known(n) || { name: n, iso: '', local_languages: [] }).map(c => [c.name, c])).values()];\nif (!countries.length) throw new Error('Run page: choose at least one country');\nconst TYPES = {\"News\": \"news\", \"Government reports (PDF)\": \"gov_report\", \"Government websites\": \"gov_website\", \"Journal papers\": \"journal\", \"Conference reports\": \"conference_report\", \"Open-source code & data\": \"open_source\"};\nconst types = list(form['Source types']).map(t => TYPES[t]).filter(Boolean);\nconst langs = list(form['Search languages']);\nconst settings = {\n  domain, domain_label: domain ? domainLabel : '',\n  focus: form['Topic focus'] || '',\n  since_year: num(form['Published from (year)'], ''),\n  max_results: num(form['Results per search (target)'], 10),\n  max_sources: Number(form['Max sources to analyse in depth']) > 0 ? Number(form['Max sources to analyse in depth']) : 0,   // 0 = no budget: analyse all\n  min_relevance: Number((String(form['Relevance screen'] || '').match(/[\\d.]+/) || ['0.6'])[0]),\n  engine: String(form['Search engine'] || 'Codex').startsWith('Single') ? 'api' : 'codex',\n};\n// order: all countries first, then languages, then source types, so \"Max web searches\" drops whole source types from the end\nconst tasks = [];\nfor (const source_type of types)\n  for (const which of ['Local language', 'English']) if (langs.includes(which))\n    for (const c of countries)\n      for (const language of which === 'English' ? ['en'] : (c.local_languages || []))\n        tasks.push({ search_skill: skill, country: c.name, country_code: c.iso || '', language, source_type, ...settings });\nif (!tasks.length) throw new Error('Run page: nothing to search. Choose at least one source type and one language');\nreturn tasks.slice(0, num(form['Max web searches'], 6)).map((json) => ({ json }));\n"
       },
       "id": "e5d1fefe-fe0d-5688-b0cd-94db1f31067a",
       "name": "Plan Search Tasks",
@@ -250,12 +301,49 @@
     },
     {
       "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO runs (domain, settings) VALUES (NULLIF($1, ''), $2::jsonb) RETURNING id AS run_id, started_at",
+        "options": {
+          "queryReplacement": "={{ [ $('Plan Search Tasks').first().json.domain, JSON.stringify({ ...$('Run page').first().json, tasks: $('Plan Search Tasks').all().map(t => [t.json.country, t.json.language, t.json.source_type].join(' x ')) }) ] }}"
+        }
+      },
+      "id": "ee47f62b-a84b-5ca6-81ba-688a805f7102",
+      "name": "Start Run",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        900,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const run_id = $('Start Run').first().json.run_id;\nreturn $('Plan Search Tasks').all().map(t => ({ json: { ...t.json, run_id } }));\n"
+      },
+      "id": "11f3aeb6-e372-531f-87ca-87e97b26af5f",
+      "name": "Tasks with Run ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        40
+      ]
+    },
+    {
+      "parameters": {
         "workflowId": {
           "__rl": true,
           "mode": "id",
           "value": "ai4sgSearchAgt01"
         },
-        "mode": "each",
+        "mode": "once",
         "workflowInputs": {
           "mappingMode": "defineBelow",
           "value": {
@@ -266,7 +354,11 @@
             "source_type": "={{ $json.source_type }}",
             "focus": "={{ $json.focus }}",
             "since_year": "={{ $json.since_year }}",
-            "max_results": "={{ $json.max_results }}"
+            "max_results": "={{ $json.max_results }}",
+            "engine": "={{ $json.engine }}",
+            "domain": "={{ $json.domain }}",
+            "domain_label": "={{ $json.domain_label }}",
+            "run_id": "={{ $json.run_id }}"
           },
           "schema": [
             {
@@ -340,6 +432,42 @@
               "required": false,
               "defaultMatch": false,
               "canBeUsedToMatch": true
+            },
+            {
+              "id": "engine",
+              "displayName": "engine",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "domain",
+              "displayName": "domain",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "domain_label",
+              "displayName": "domain_label",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "run_id",
+              "displayName": "run_id",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
             }
           ]
         },
@@ -352,25 +480,64 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        920,
+        1340,
         40
       ],
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// All candidates from all searches of this run, nothing cut. De-duplicate within the run: same URL, same DOI, or the\n// same title (another version of one paper: journal page, preprint, repository copy). The other versions' URLs are kept\n// on the first one as extra full-text downloads, so the collector can fall back to them.\nconst all = $input.all().map(i => i.json).filter(c => c && c.url_norm);\nconst tnorm = (t) => String(t || '').toLowerCase().normalize('NFKD').replace(/[^\\p{L}\\p{N}]+/gu, ' ').trim();\nconst seen = new Map(), list = [];\nlet merged = 0;\nfor (const c of all) {\n  const doi = String(c.doi || '').toLowerCase().trim(), t = tnorm(c.title);\n  const keys = [c.url_norm, doi && 'doi:' + doi, t.length > 25 && 'title:' + t].filter(Boolean);\n  const first = keys.map(k => seen.get(k)).find(Boolean);\n  if (first) {\n    if (first.url_norm !== c.url_norm && !(first.files || []).some(f => f.url === c.url)) {\n      first.files = [...(first.files || []), { url: c.url, kind: 'full_text', note: 'another version of this source found in the search' }];\n      if (!first.doi && doi) first.doi = c.doi;\n      merged++;\n    }\n    keys.forEach(k => seen.has(k) || seen.set(k, first));\n    continue;\n  }\n  const item = { ...c, title_norm: t };\n  keys.forEach(k => seen.set(k, item));\n  list.push(item);\n}\nreturn [{ json: { list, found: all.length, unique: list.length, versions_merged: merged } }];\n"
+      },
+      "id": "be8f87d2-b656-5d60-9046-2b7740d6b9b1",
+      "name": "Prepare Candidates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        40
+      ]
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- drop sources seen in earlier runs, take turns across the searches, keep at most \"Max sources to analyse\"\nWITH cand AS (\n  SELECT r.*, o.ord\n  FROM jsonb_array_elements($1::jsonb) WITH ORDINALITY AS o(j, ord),\n       jsonb_to_record(o.j) AS r(url text, url_norm text, title text, title_en text, source_type text, format text,\n                                 country text, language text, why_relevant text)\n  WHERE r.url_norm IS NOT NULL\n), fresh AS (\n  SELECT DISTINCT ON (url_norm) * FROM cand\n  WHERE NOT EXISTS (SELECT 1 FROM sources s WHERE s.url_norm = cand.url_norm)\n  ORDER BY url_norm, ord\n), picked AS (\n  SELECT *, row_number() OVER (PARTITION BY country, language, source_type ORDER BY ord) AS turn FROM fresh\n  ORDER BY turn, ord\n  LIMIT $2::int\n)\nINSERT INTO sources (url, url_norm, title, title_en, source_type, format, country, language, why_relevant)\nSELECT url, url_norm, title, title_en, source_type, format, country, language, why_relevant FROM picked ORDER BY turn, ord\nON CONFLICT (url_norm) DO NOTHING\nRETURNING id AS source_id, url, format, country, language",
+        "query": "-- keep every candidate not seen before (same URL or same DOI as an earlier source = already known)\nWITH cand AS (\n  SELECT r.*, o.ord\n  FROM jsonb_array_elements($1::jsonb) WITH ORDINALITY AS o(j, ord),\n       jsonb_to_record(o.j) AS r(url text, url_norm text, title text, title_en text, source_type text, format text, search_engine text,\n                                 country text, language text, why_relevant text, domain text, doi text, database text,\n                                 found_via_url text, relation text, project_name text, files jsonb, title_norm text)\n)\nINSERT INTO sources (url, url_norm, title, title_en, source_type, format, country, language, why_relevant, search_engine, domain,\n                     run_id, status, doi, database, found_via_url, relation, project_guess, files)\nSELECT url, url_norm, title, title_en, source_type, format, country, language, why_relevant, search_engine, NULLIF(domain, ''),\n       $2::bigint, 'candidate', NULLIF(lower(doi), ''), NULLIF(database, ''), NULLIF(found_via_url, ''), NULLIF(relation, ''),\n       NULLIF(project_name, ''), COALESCE(files, '[]'::jsonb)\nFROM cand c\nWHERE NOT EXISTS (SELECT 1 FROM sources s WHERE s.url_norm = c.url_norm)\n  AND (COALESCE(c.doi, '') = '' OR NOT EXISTS (SELECT 1 FROM sources s WHERE lower(s.doi) = lower(c.doi)))\n  -- the same title as a source already in the database (another version of a known paper)\n  AND (length(COALESCE(c.title_norm, '')) <= 25 OR NOT EXISTS (\n        SELECT 1 FROM sources s WHERE trim(regexp_replace(lower(s.title), '[^[:alnum:]]+', ' ', 'g')) = c.title_norm))\nORDER BY ord\nON CONFLICT (url_norm) DO NOTHING\nRETURNING id AS source_id, url, doi, format, country, language, files",
         "options": {
-          "queryReplacement": "={{ [ JSON.stringify($input.all().map(i => i.json)), $('Plan Search Tasks').first().json.max_sources ] }}"
+          "queryReplacement": "={{ [ JSON.stringify($json.list), $('Start Run').first().json.run_id ] }}"
         }
       },
-      "id": "93f735d1-fbb6-50a2-801b-76fba49b1f98",
-      "name": "Save New Sources (up to max)",
+      "id": "8f91ca60-807b-5a24-a800-acfa77357e84",
+      "name": "Save Candidates",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        1160,
+        1780,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- link cascaded sources to the source that led to them, then store the search numbers\nWITH linked AS (\n  UPDATE sources c SET found_via = p.id\n  FROM sources p\n  WHERE c.run_id = $1 AND c.found_via IS NULL AND c.found_via_url IS NOT NULL AND p.id <> c.id\n    AND (p.url = c.found_via_url OR p.url_norm = lower(regexp_replace(regexp_replace(c.found_via_url, '#.*$', ''), '/$', '')))\n  RETURNING c.id\n)\nUPDATE runs SET counts = counts || jsonb_build_object('found', $2::int, 'unique', $3::int, 'new', $4::int, 'versions_merged', $5::int,\n                                                      'already_known', $3::int - $4::int, 'cascade_linked', (SELECT count(*) FROM linked))\nWHERE id = $1 RETURNING id AS run_id",
+        "options": {
+          "queryReplacement": "={{ [ $('Start Run').first().json.run_id, $('Prepare Candidates').first().json.found, $('Prepare Candidates').first().json.unique, $('Save Candidates').all().filter(i => i.json.source_id).length, $('Prepare Candidates').first().json.versions_merged || 0 ] }}"
+        }
+      },
+      "id": "bbc91f32-f955-510b-ac78-f9634cb2785f",
+      "name": "Record Search Counts",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2000,
         40
       ],
       "credentials": {
@@ -383,60 +550,24 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "typeValidation": "loose",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "sid",
-              "leftValue": "={{ $json.source_id }}",
-              "rightValue": "",
-              "operator": {
-                "type": "string",
-                "operation": "exists",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "looseTypeValidation": true,
-        "options": {}
-      },
-      "id": "cfe1eaa8-b2c1-561c-9bc5-7fd92b7a9153",
-      "name": "New Sources Only",
-      "type": "n8n-nodes-base.filter",
-      "typeVersion": 2.2,
-      "position": [
-        1400,
-        40
-      ]
-    },
-    {
-      "parameters": {
         "workflowId": {
           "__rl": true,
           "mode": "id",
-          "value": "ai4sgExtract0001"
+          "value": "ai4sgCollScrn001"
         },
-        "mode": "each",
+        "mode": "once",
         "workflowInputs": {
           "mappingMode": "defineBelow",
           "value": {
-            "source_id": "={{ $json.source_id }}",
-            "url": "={{ $json.url }}",
-            "format": "={{ $json.format }}",
-            "country": "={{ $json.country }}",
-            "language": "={{ $json.language }}",
-            "min_relevance": "={{ $('Plan Search Tasks').first().json.min_relevance }}"
+            "run_id": "={{ $('Start Run').first().json.run_id }}",
+            "domain": "={{ $('Plan Search Tasks').first().json.domain || '' }}",
+            "min_relevance": "={{ $('Plan Search Tasks').first().json.min_relevance }}",
+            "new_ids": "={{ $('Save Candidates').all().map(i => i.json.source_id).filter(Boolean).join(',') }}"
           },
           "schema": [
             {
-              "id": "source_id",
-              "displayName": "source_id",
+              "id": "run_id",
+              "displayName": "run_id",
               "type": "string",
               "display": true,
               "required": false,
@@ -444,35 +575,8 @@
               "canBeUsedToMatch": true
             },
             {
-              "id": "url",
-              "displayName": "url",
-              "type": "string",
-              "display": true,
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "format",
-              "displayName": "format",
-              "type": "string",
-              "display": true,
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "country",
-              "displayName": "country",
-              "type": "string",
-              "display": true,
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "language",
-              "displayName": "language",
+              "id": "domain",
+              "displayName": "domain",
               "type": "string",
               "display": true,
               "required": false,
@@ -487,6 +591,15 @@
               "required": false,
               "defaultMatch": false,
               "canBeUsedToMatch": true
+            },
+            {
+              "id": "new_ids",
+              "displayName": "new_ids",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
             }
           ]
         },
@@ -494,15 +607,140 @@
           "waitForSubWorkflow": true
         }
       },
-      "id": "704b53ec-9710-523d-8b6a-7c52a952b605",
-      "name": "C · Extract & Interpretation",
+      "id": "c97701be-c531-5680-a3cf-ce7674c6407a",
+      "name": "① Collect & Screen",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        1640,
+        2220,
         40
       ],
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "ai4sgPickExtr001"
+        },
+        "mode": "once",
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "run_id": "={{ $('Start Run').first().json.run_id }}",
+            "domain": "={{ $('Plan Search Tasks').first().json.domain || '' }}",
+            "max_sources": "={{ $('Plan Search Tasks').first().json.max_sources }}"
+          },
+          "schema": [
+            {
+              "id": "run_id",
+              "displayName": "run_id",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "domain",
+              "displayName": "domain",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "max_sources",
+              "displayName": "max_sources",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "eea628c4-e7a5-5bd9-882a-f78799d893d9",
+      "name": "② Organise & Extract",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2480,
+        40
+      ],
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "ai4sgProjClean01"
+        },
+        "mode": "once",
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "since": "={{ $('Start Run').first().json.started_at }}"
+          },
+          "schema": [
+            {
+              "id": "since",
+              "displayName": "since",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "d2f0d2f8-167b-5e41-ad2c-e7caa3b76d2f",
+      "name": "③ Project Summaries",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2740,
+        40
+      ],
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH r AS (SELECT id, started_at, domain FROM runs WHERE id = $1),\n     mine AS (SELECT s.* FROM sources s, r WHERE s.run_id = r.id),\n     analysed AS (SELECT e.source_id, s.run_id FROM extractions e JOIN sources s ON s.id = e.source_id, r WHERE e.created_at >= r.started_at)\nUPDATE runs SET finished_at = now(), counts = counts || jsonb_build_object(\n  'cascaded',        (SELECT count(*) FROM mine WHERE found_via_url IS NOT NULL),\n  'downloaded',      (SELECT count(*) FROM mine WHERE status <> 'candidate' AND status <> 'collect_failed'),\n  'download_failed', (SELECT count(*) FROM mine WHERE status = 'collect_failed'),\n  'full_text',       (SELECT count(*) FROM mine WHERE text_level = 'full'),\n  'abstract_only',   (SELECT count(*) FROM mine WHERE text_level = 'abstract'),\n  'retried',         (SELECT count(*) FROM sources s, r WHERE s.run_id IS DISTINCT FROM r.id AND s.collected_at >= r.started_at),\n  'retried_ok',      (SELECT count(*) FROM sources s, r WHERE s.run_id IS DISTINCT FROM r.id AND s.collected_at >= r.started_at\n                        AND s.text_level IN ('full', 'abstract')),\n  'screened',        (SELECT count(*) FROM mine WHERE screen IS NOT NULL),\n  'passed_screen',   (SELECT count(*) FROM mine WHERE status IN ('passed', 'extracted')),\n  'filtered_out',    (SELECT count(*) FROM mine WHERE status = 'filtered_out'),\n  'analysed',        (SELECT count(*) FROM analysed),\n  'analysed_from_queue', (SELECT count(*) FROM analysed WHERE analysed.run_id IS DISTINCT FROM $1),\n  'queued',          (SELECT count(*) FROM sources s, r WHERE s.status = 'passed' AND s.domain IS NOT DISTINCT FROM r.domain),\n  'new_projects',    (SELECT count(*) FROM ai_projects p, r WHERE p.created_at >= r.started_at),\n  'new_tools',       (SELECT count(*) FROM ai_tools t, r WHERE t.created_at >= r.started_at),\n  'duplicates',      (SELECT count(*) FROM sources s WHERE s.status = 'duplicate' AND s.pick->>'run_id' = $1::text),\n  'organised_by',    (SELECT s.pick->>'method' FROM sources s WHERE s.pick->>'run_id' = $1::text LIMIT 1),\n  'projects_updated', (SELECT count(*) FROM ai_projects p, r WHERE p.updated_at >= r.started_at))\nWHERE id = $1 RETURNING id AS run_id, counts",
+        "options": {
+          "queryReplacement": "={{ [ $('Start Run').first().json.run_id ] }}"
+        }
+      },
+      "id": "20651bec-0e68-5f46-ad9d-ff1e182ced0a",
+      "name": "④ Finish Run",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3000,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true
     }
   ],
   "connections": {
@@ -543,6 +781,28 @@
       "main": [
         [
           {
+            "node": "Start Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Run": {
+      "main": [
+        [
+          {
+            "node": "Tasks with Run ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tasks with Run ID": {
+      "main": [
+        [
+          {
             "node": "B · Search",
             "type": "main",
             "index": 0
@@ -554,29 +814,73 @@
       "main": [
         [
           {
-            "node": "Save New Sources (up to max)",
+            "node": "Prepare Candidates",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Save New Sources (up to max)": {
+    "Prepare Candidates": {
       "main": [
         [
           {
-            "node": "New Sources Only",
+            "node": "Save Candidates",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "New Sources Only": {
+    "Save Candidates": {
       "main": [
         [
           {
-            "node": "C · Extract & Interpretation",
+            "node": "Record Search Counts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Search Counts": {
+      "main": [
+        [
+          {
+            "node": "① Collect & Screen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "① Collect & Screen": {
+      "main": [
+        [
+          {
+            "node": "② Organise & Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "② Organise & Extract": {
+      "main": [
+        [
+          {
+            "node": "③ Project Summaries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "③ Project Summaries": {
+      "main": [
+        [
+          {
+            "node": "④ Finish Run",
             "type": "main",
             "index": 0
           }

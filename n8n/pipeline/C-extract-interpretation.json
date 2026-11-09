@@ -1,15 +1,15 @@
 {
   "id": "ai4sgExtract0001",
-  "name": "AI4SG · C Extract & Interpretation",
+  "name": "AI4SG · C2 Extract & Interpretation",
   "active": false,
   "nodes": [
     {
       "parameters": {
-        "content": "## C · Extract & Interpretation (runs the Extraction Skill)\nCalled once per new source. Fetches the full text (PDF or web page), then two AI steps:\n**1 · Relevance Screen (GPT-6 Luna, cheap):** applies the Search Skill's definition of AI for Social Good. Sources that are not AI4SG, or below the threshold chosen on the run page (*Relevance screen*), are saved as *filtered out* and never reach the experts.\n**2 · Extract & Interpret (GPT-6 Sol):** only for sources that pass. Follows the Extraction Skill and the experts' worked examples; every field cites the source (original + English); **Verify Evidence** checks each quote occurs in the text. Saved as *pending review* for the audit page.",
-        "width": 3000,
-        "height": 170
+        "content": "## C2 · Extract & Interpretation (runs the Extraction Skill) and links the source to its project\nCalled for the sources A picked (new projects first). Reads the text from the source library. **Extract & Interpret (GPT-6 Sol)** follows the Extraction Skill, the run's domain module and the experts' worked examples; every field cites the source (original + English). **Verify Evidence** checks each quote occurs in the text and computes the **relevance score** (5 criteria x 20 points). Then **project linking**: the source is matched against known projects (name, organisation, country); close matches are checked by GPT-6 Luna (*same project?*); otherwise a new project is created (P-00012 …). A project is the whole project: the same tool in several places is one project. Reviewers can move or detach a source on the audit page.",
+        "width": 3300,
+        "height": 190
       },
-      "id": "4f1b95ec-5e2c-59ae-94ab-f52b5b9cac33",
+      "id": "f591a4ef-3ea5-5123-be58-a9d3703d9b07",
       "name": "Note · title",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -20,34 +20,18 @@
     },
     {
       "parameters": {
-        "content": "### 🧑‍🔬 Skills in\n`skills/search/SKILL.md`: definition of AI4SG, used by the relevance screen.\n\n`skills/extraction/SKILL.md`: field definitions and interpretation rules (the experts' focus and priors, e.g. cost and benefit).\n\n`skills/extraction/examples/*.md`: extractions the experts made by hand, used as worked examples in the prompt.",
+        "content": "### 🧑‍🔬 Skills in\n`skills/extraction/SKILL.md`: field definitions and interpretation rules.\n\n`skills/domains/<domain>.md`: the run's domain module: 4 fields, outcome categories.\n\n`skills/extraction/examples/*.md`: the experts' worked examples (a `healthcare-…` file only in Healthcare runs).",
         "width": 500,
-        "height": 440,
+        "height": 260,
         "color": 4
       },
-      "id": "98d29447-9ee9-5ea9-aadc-e691e4ffaefb",
+      "id": "4932e415-12aa-5c64-a52f-ca2d14c4200b",
       "name": "Skill in",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
         180,
-        -260
-      ]
-    },
-    {
-      "parameters": {
-        "content": "### Fetch full text\nDownload the source; PDFs (government and conference reports) go through PDF text extraction, web pages through HTML extraction. The text is kept so quotes can be verified.",
-        "width": 700,
-        "height": 440,
-        "color": 7
-      },
-      "id": "9aa8754a-0b02-53a9-b2c8-cd75ad38228f",
-      "name": "Fetch",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        760,
-        -260
+        -300
       ]
     },
     {
@@ -59,24 +43,12 @@
               "name": "source_id"
             },
             {
-              "name": "url"
-            },
-            {
-              "name": "format"
-            },
-            {
-              "name": "country"
-            },
-            {
-              "name": "language"
-            },
-            {
-              "name": "min_relevance"
+              "name": "domain"
             }
           ]
         }
       },
-      "id": "803391e9-4adf-5c80-a346-2a9287e2847d",
+      "id": "e922af75-aea7-54bb-ac32-c2d947d5d5c7",
       "name": "Source to Process",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -88,10 +60,10 @@
     {
       "parameters": {
         "operation": "read",
-        "fileSelector": "/skills/{search,extraction}/**/*.md",
+        "fileSelector": "/skills/{extraction,domains}/**/*.md",
         "options": {}
       },
-      "id": "87db3a1c-271c-5644-8460-3fef0efbbec5",
+      "id": "d50fa9b0-335d-5f16-9e80-0ba43c3bc6c0",
       "name": "Load Skills + Examples",
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
@@ -106,7 +78,7 @@
         "operation": "text",
         "options": {}
       },
-      "id": "612b2e90-6268-5406-873d-9d0613fcece7",
+      "id": "03f9d55e-9ac5-5e6e-b579-ec62c806b46d",
       "name": "Files to Text",
       "type": "n8n-nodes-base.extractFromFile",
       "typeVersion": 1,
@@ -117,31 +89,47 @@
     },
     {
       "parameters": {
-        "url": "={{ $('Source to Process').first().json.url }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "User-Agent",
-              "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
-            }
-          ]
-        },
+        "operation": "executeQuery",
+        "query": "-- the source, and the deployment the organiser (stage ②) or a reviewer placed it in, with its tool and its other sources\nSELECT s.id, s.url, s.title, s.title_en, s.country, s.language, s.source_type, s.why_relevant, s.project_guess, s.domain, s.screen, s.text_chars,\n       p.id AS placed_project_id, p.code AS placed_code, p.name AS placed_name, p.implementing_org AS placed_org, p.countries AS placed_countries,\n       p.deployment AS placed_deployment, sp.method AS placed_by, sp.reason AS placed_reason, t.code AS tool_code, t.name AS tool_name,\n       t.developer AS tool_developer,\n       (SELECT COALESCE(jsonb_agg(jsonb_build_object('sid', o.id, 'title', COALESCE(o.screen->>'headline_en', o.title_en, o.title),\n                                                     'type', o.source_type) ORDER BY o.id), '[]'::jsonb)\n        FROM source_projects osp JOIN sources o ON o.id = osp.source_id\n        WHERE osp.project_id = p.id AND o.id <> s.id AND o.status <> 'duplicate') AS placed_others\nFROM sources s\nLEFT JOIN source_projects sp ON sp.source_id = s.id AND sp.method IN ('organised', 'manual', 'merged', 'duplicate')\nLEFT JOIN ai_projects p ON p.id = sp.project_id\nLEFT JOIN ai_tools t ON t.id = p.tool_id\nWHERE s.id = $1",
+        "options": {
+          "queryReplacement": "={{ [ $('Source to Process').first().json.source_id ] }}"
+        }
+      },
+      "id": "0f9c22c4-273f-5bc3-b785-f61ab066c176",
+      "name": "Load Source",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        680,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "url": "={{ 'http://codex-runner:8787/library/' + $('Load Source').first().json.id + '/text' }}",
         "options": {
           "timeout": 60000,
           "response": {
             "response": {
-              "responseFormat": "file"
+              "responseFormat": "text",
+              "outputPropertyName": "text"
             }
           }
         }
       },
-      "id": "379c4521-ffc1-5afd-aaca-f4e7994cef2e",
-      "name": "Download",
+      "id": "836923a1-06fe-52d7-88ee-79362fb5047f",
+      "name": "Read from Library",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        800,
+        900,
         40
       ],
       "executeOnce": true,
@@ -149,219 +137,29 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": false,
-            "typeValidation": "loose",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "pdf",
-              "leftValue": "={{ $binary.data?.mimeType || '' }}",
-              "rightValue": "pdf",
-              "operator": {
-                "type": "string",
-                "operation": "contains"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "looseTypeValidation": true,
-        "options": {}
+        "jsCode": "// Extraction Skill + domain module + expert examples, then the source text from the library.\nconst files = $('Load Skills + Examples').all(), texts = $('Files to Text').all();\nconst src = $('Load Source').first().json;\nconst domain = String($('Source to Process').first().json.domain || '');\nconst DOMAINS = {\"All domains\": \"\", \"Healthcare\": \"healthcare\", \"Public service\": \"public_service\", \"Agriculture\": \"agriculture\", \"Education\": \"education\"};\nconst label = Object.keys(DOMAINS).find(k => DOMAINS[k] === domain) || domain;\nconst domainKeys = Object.values(DOMAINS).filter(Boolean);\nlet skill = '', module = '', examples = [];\ntexts.forEach((t, i) => {\n  const { fileName: name, directory: dir = '' } = files[i].binary.data;\n  if (dir.endsWith('/extraction') && name === 'SKILL.md') skill = t.json.data;\n  else if (dir.endsWith('/domains')) { if (domain && name === `${domain}.md`) module = t.json.data; }\n  else if (dir.includes('/extraction') && !name.startsWith('_')) {\n    // an example named \"<domain>-....md\" is only used in runs of that domain; others in every run\n    const own = domainKeys.find(d => name.startsWith(d + '-'));\n    if (!own || own === domain) examples.push(`### Expert example: ${name}\\n${t.json.data}`);\n  }\n});\nconst doc = String($input.first().json.text || '').replace(/\\s+/g, ' ').trim();\nconst head = `URL: ${src.url}\\nCountry: ${src.country}\\nLanguage: ${src.language}` + (module ? `\\nDomain of this run: ${label}` : '');\n// the deployment the organiser placed this source in (context only: extract what THIS source says)\nconst dep = src.placed_deployment || {};\nconst others = (Array.isArray(src.placed_others) ? src.placed_others : []).slice(0, 8);\nconst ctx = src.placed_code ? `\\n\\n## Deployment this source was grouped under (context only)\\nBefore this analysis the sources were organised into ` +\n  `deployments. This source was placed in ${src.placed_code} \"${src.placed_name}\"${src.tool_code ? `, a deployment of the tool ${src.tool_code} \"${src.tool_name}\"` +\n  `${src.tool_developer ? ' (' + src.tool_developer + ')' : ''}` : ''}${src.placed_org ? `, run by ${src.placed_org}` : ''}` +\n  `${dep.place ? `, ${dep.place}` : ''}${dep.phase ? `, ${dep.phase}` : ''}.${src.placed_reason ? ' Why: ' + src.placed_reason : ''}\\n` +\n  (others.length ? `Other sources about it: ${others.map(o => `[S${o.sid}] ${o.title} (${o.type})`).join('; ')}.\\n` : '') +\n  `Use this only to name the project consistently (project.name: this deployment's name; technology.model_or_product: the tool). Extract ` +\n  `only what THIS source says; if the source is clearly about another deployment, describe what the source says and explain it in ` +\n  `interpretation.gaps.` : '';\nreturn [{ json: { source_id: src.id, domain, fulltext: doc,\n  prompt: `${skill}${module ? `\\n\\n---\\n\\n# Domain module for this run: ${label}\\n\\n${module}` : ''}\\n\\n` +\n          `## Worked examples from our experts\\n${examples.join('\\n\\n') || '(none yet)'}${ctx}\\n\\n## Source to analyse\\n${head}\\n\\n${doc.slice(0, 80000)}` } }];\n"
       },
-      "id": "467d23df-e8ab-5d4b-80b9-84a81f5659c2",
-      "name": "PDF?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        1020,
-        40
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "pdf",
-        "options": {}
-      },
-      "id": "6131ffb0-6eb5-511b-bde2-1cf962cc31ad",
-      "name": "Extract PDF Text",
-      "type": "n8n-nodes-base.extractFromFile",
-      "typeVersion": 1,
-      "position": [
-        1240,
-        -60
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "operation": "extractHtmlContent",
-        "sourceData": "binary",
-        "extractionValues": {
-          "values": [
-            {
-              "key": "text",
-              "cssSelector": "article, main, body",
-              "returnValue": "text"
-            }
-          ]
-        },
-        "options": {
-          "trimValues": true,
-          "cleanUpText": false
-        }
-      },
-      "id": "1d4383f3-264f-5c83-a014-51bee2ac59e9",
-      "name": "Extract HTML Text",
-      "type": "n8n-nodes-base.html",
-      "typeVersion": 1.2,
-      "position": [
-        1240,
-        140
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "// Search Skill (definition of AI4SG) for the screen; Extraction Skill + expert examples for the full read\nconst files = $('Load Skills + Examples').all();\nconst texts = $('Files to Text').all();\nlet searchSkill = '', skill = '', examples = [];\ntexts.forEach((t, i) => {\n  const { fileName: name, directory: dir = '' } = files[i].binary.data;\n  if (dir.endsWith('/search') && name === 'SKILL.md') searchSkill = t.json.data;\n  else if (dir.endsWith('/extraction') && name === 'SKILL.md') skill = t.json.data;\n  else if (dir.includes('/extraction') && !name.startsWith('_')) examples.push(`### Expert example: ${name}\\n${t.json.data}`);\n});\nconst src = $('Source to Process').first().json;\nconst minRelevance = Number(src.min_relevance) || 0.6;   // \"Relevance screen\" on the run page\nconst doc = String($input.first().json.text || '').replace(/\\s+/g, ' ').trim();\nconst head = `URL: ${src.url}\\nCountry: ${src.country}\\nLanguage: ${src.language}`;\nreturn [{ json: { source_id: src.source_id, fulltext: doc, min_relevance: minRelevance,\n  screen_prompt:\n    `${searchSkill}\\n\\n## Screening task\\nYou are screening ONE source before the experts' detailed review. Using the definition in ` +\n    `\"What counts as AI for Social Good\" above, decide whether this source describes a concrete AI system, project, evaluation or policy ` +\n    `whose primary purpose is a social benefit in the stated country. Generic AI news, AI policy talk without a concrete project, ` +\n    `commercial products, digitisation without a learned model, and pages that merely mention AI do not qualify.\\n` +\n    `Return: is_ai4sg (boolean), relevance (0-1: how clearly and centrally the source is about such a project), ` +\n    `reason (one English sentence), headline_en (one English sentence: who does what, max 20 words).\\n\\n## Source\\n${head}\\n\\n${doc.slice(0, 15000)}`,\n  prompt:\n    `${skill}\\n\\n## Worked examples from our experts\\n${examples.join('\\n\\n') || '(none yet)'}\\n\\n` +\n    `## Source to analyse\\n${head}\\n\\n${doc.slice(0, 60000)}` } }];\n"
-      },
-      "id": "d11ae1c4-08ee-5627-bf91-b6660fc53b61",
+      "id": "fd26d5e1-1a32-581b-a031-ea1b167dc8b3",
       "name": "Compose Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1560,
+        1120,
         40
       ]
     },
     {
       "parameters": {
         "promptType": "define",
-        "text": "={{ $json.screen_prompt }}",
+        "text": "={{ $json.prompt }}",
         "hasOutputParser": true
       },
-      "id": "e04fe8d6-30b4-56af-92e1-9a309906edff",
-      "name": "Relevance Screen",
-      "type": "@n8n/n8n-nodes-langchain.chainLlm",
-      "typeVersion": 1.7,
-      "position": [
-        1800,
-        40
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "model": {
-          "__rl": true,
-          "mode": "id",
-          "value": "gpt-6-luna"
-        },
-        "options": {
-          "reasoningEffort": "low",
-          "timeout": 180000
-        }
-      },
-      "id": "e0610b67-c689-536e-98d7-92b4d3bb264e",
-      "name": "LLM (Luna)",
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1.2,
-      "position": [
-        1720,
-        280
-      ],
-      "credentials": {
-        "openAiApi": {
-          "id": "ai4sgOpenAiApi01",
-          "name": "AI4SG LLM (OpenAI-compatible)"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "schemaType": "manual",
-        "inputSchema": "{\n  \"type\": \"object\",\n  \"required\": [\n    \"is_ai4sg\",\n    \"relevance\",\n    \"reason\",\n    \"headline_en\"\n  ],\n  \"properties\": {\n    \"is_ai4sg\": {\n      \"type\": \"boolean\"\n    },\n    \"relevance\": {\n      \"type\": \"number\"\n    },\n    \"reason\": {\n      \"type\": \"string\"\n    },\n    \"headline_en\": {\n      \"type\": \"string\"\n    }\n  }\n}"
-      },
-      "id": "13063a08-c87b-59bb-b0fa-d755d4ccdd6d",
-      "name": "Screen Schema",
-      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
-      "typeVersion": 1.3,
-      "position": [
-        1880,
-        280
-      ]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "typeValidation": "loose",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "rel",
-              "leftValue": "={{ $json.output?.is_ai4sg === true && ($json.output?.relevance ?? 0) >= $('Compose Prompt').first().json.min_relevance }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "looseTypeValidation": true,
-        "options": {}
-      },
-      "id": "d4a0fcb5-6c8e-5cb1-9f82-5a9e22577907",
-      "name": "Worth Expert Time?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        2060,
-        40
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO extractions (source_id, fields, flags, confidence, status)\nVALUES ($1, $2::jsonb, '[]'::jsonb, $3, 'filtered_out')",
-        "options": {
-          "queryReplacement": "={{ [ $('Compose Prompt').first().json.source_id, JSON.stringify({ is_ai4sg: $json.output?.is_ai4sg ?? null, headline: $json.output?.headline_en || '', screen: $json.output || { error: $json.error || 'screen failed' } }), $json.output?.relevance ?? 0 ] }}"
-        }
-      },
-      "id": "c71e5fac-6414-5636-9496-1457ec1706db",
-      "name": "Save as Filtered Out",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.6,
-      "position": [
-        2300,
-        -200
-      ],
-      "credentials": {
-        "postgres": {
-          "id": "ai4sgPostgres001",
-          "name": "AI4SG Postgres"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "promptType": "define",
-        "text": "={{ $('Compose Prompt').first().json.prompt }}",
-        "hasOutputParser": true
-      },
-      "id": "25fea26d-a1e5-58f0-88b2-776c08bd09d0",
+      "id": "d28d7bab-1787-5b2e-ab73-256fc624f332",
       "name": "Extract & Interpret",
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.7,
       "position": [
-        2300,
+        1340,
         40
       ],
       "onError": "continueRegularOutput"
@@ -378,12 +176,12 @@
           "timeout": 180000
         }
       },
-      "id": "431f4097-d1fb-5015-9e43-665d82ca8257",
+      "id": "748e0340-dda9-55dc-b5c7-7da85a75f0b5",
       "name": "LLM (Sol)",
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.2,
       "position": [
-        2220,
+        1260,
         280
       ],
       "credentials": {
@@ -396,45 +194,320 @@
     {
       "parameters": {
         "schemaType": "manual",
-        "inputSchema": "{\n  \"type\": \"object\",\n  \"required\": [\n    \"is_ai4sg\",\n    \"headline\",\n    \"source\",\n    \"interpretation\",\n    \"evidence\"\n  ],\n  \"properties\": {\n    \"is_ai4sg\": {\n      \"type\": \"boolean\"\n    },\n    \"headline\": {\n      \"type\": \"string\",\n      \"description\": \"one English sentence, max 20 words\"\n    },\n    \"source\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"title_original\": {\n          \"type\": \"string\"\n        },\n        \"title_en\": {\n          \"type\": \"string\"\n        },\n        \"language\": {\n          \"type\": \"string\"\n        },\n        \"publisher\": {\n          \"type\": \"string\"\n        },\n        \"published\": {\n          \"type\": \"string\"\n        },\n        \"summary_en\": {\n          \"type\": \"string\"\n        }\n      }\n    },\n    \"project\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"name\": {\n          \"type\": \"string\"\n        },\n        \"implementing_org\": {\n          \"type\": \"string\"\n        },\n        \"location\": {\n          \"type\": \"string\"\n        },\n        \"domain\": {\n          \"type\": \"string\"\n        },\n        \"ai_technique\": {\n          \"type\": \"string\"\n        },\n        \"deployment_stage\": {\n          \"type\": \"string\"\n        },\n        \"target_beneficiaries\": {\n          \"type\": \"string\"\n        },\n        \"partners\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"funders\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"countries\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"evidence_refs\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"reach\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"stated\": {\n          \"type\": \"boolean\"\n        },\n        \"number\": {\n          \"type\": [\n            \"number\",\n            \"null\"\n          ]\n        },\n        \"unit\": {\n          \"type\": \"string\"\n        },\n        \"is_target\": {\n          \"type\": \"boolean\"\n        },\n        \"evidence_refs\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"cost\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"stated\": {\n          \"type\": \"boolean\"\n        },\n        \"amount\": {\n          \"type\": [\n            \"number\",\n            \"null\"\n          ]\n        },\n        \"currency\": {\n          \"type\": \"string\"\n        },\n        \"amount_as_written\": {\n          \"type\": \"string\"\n        },\n        \"what_is_covered\": {\n          \"type\": \"string\"\n        },\n        \"cost_per_beneficiary\": {\n          \"type\": [\n            \"number\",\n            \"null\"\n          ]\n        },\n        \"evidence_refs\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"benefit\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"stated\": {\n          \"type\": \"boolean\"\n        },\n        \"outcome\": {\n          \"type\": \"string\"\n        },\n        \"metric\": {\n          \"type\": \"string\"\n        },\n        \"magnitude\": {\n          \"type\": \"string\"\n        },\n        \"comparison\": {\n          \"type\": \"string\"\n        },\n        \"outputs_reported\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"evidence_refs\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"evidence_strength\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"type\": {\n          \"type\": \"string\",\n          \"enum\": [\n            \"rct\",\n            \"quasi_experimental\",\n            \"observational\",\n            \"pilot_report\",\n            \"anecdotal\",\n            \"none\"\n          ]\n        },\n        \"rationale\": {\n          \"type\": \"string\"\n        }\n      }\n    },\n    \"interpretation\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"cost_benefit\": {\n          \"type\": \"string\"\n        },\n        \"credibility\": {\n          \"type\": \"string\"\n        },\n        \"gaps\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"overall\": {\n          \"type\": \"string\"\n        }\n      }\n    },\n    \"risks_limitations\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"evidence\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"required\": [\n          \"id\",\n          \"field\",\n          \"quote_original\",\n          \"quote_en\"\n        ],\n        \"properties\": {\n          \"id\": {\n            \"type\": \"string\"\n          },\n          \"field\": {\n            \"type\": \"string\"\n          },\n          \"quote_original\": {\n            \"type\": \"string\"\n          },\n          \"quote_en\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"self_confidence\": {\n      \"type\": \"number\"\n    }\n  }\n}"
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"required\": [\n    \"is_ai4sg\",\n    \"headline\",\n    \"source\",\n    \"interpretation\",\n    \"evidence\"\n  ],\n  \"properties\": {\n    \"is_ai4sg\": {\n      \"type\": \"boolean\"\n    },\n    \"headline\": {\n      \"type\": \"string\",\n      \"description\": \"one English sentence, max 20 words\"\n    },\n    \"source\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"title_original\": {\n          \"type\": \"string\"\n        },\n        \"title_en\": {\n          \"type\": \"string\"\n        },\n        \"language\": {\n          \"type\": \"string\"\n        },\n        \"publisher\": {\n          \"type\": \"string\"\n        },\n        \"published\": {\n          \"type\": \"string\"\n        },\n        \"summary_en\": {\n          \"type\": \"string\"\n        }\n      }\n    },\n    \"project\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"name\": {\n          \"type\": \"string\"\n        },\n        \"implementing_org\": {\n          \"type\": \"string\"\n        },\n        \"domain\": {\n          \"type\": \"string\"\n        },\n        \"deployment_stage\": {\n          \"type\": \"string\"\n        },\n        \"government_role\": {\n          \"type\": \"string\"\n        },\n        \"target_beneficiaries\": {\n          \"type\": \"string\"\n        },\n        \"partners\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"funders\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"countries\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"evidence_refs\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"use\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"problem\": {\n          \"type\": \"string\"\n        },\n        \"primary_user\": {\n          \"type\": \"string\"\n        },\n        \"ai_role\": {\n          \"type\": \"string\"\n        },\n        \"human_role\": {\n          \"type\": \"string\"\n        },\n        \"channel\": {\n          \"type\": \"string\"\n        },\n        \"evidence_refs\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"technology\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"stated\": {\n          \"type\": \"boolean\"\n        },\n        \"category\": {\n          \"type\": \"string\"\n        },\n        \"specific\": {\n          \"type\": \"string\"\n        },\n        \"model_or_product\": {\n          \"type\": \"string\"\n        },\n        \"data_used\": {\n          \"type\": \"string\"\n        },\n        \"evidence_refs\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"timeline\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"stated\": {\n          \"type\": \"boolean\"\n        },\n        \"start_date\": {\n          \"type\": \"string\"\n        },\n        \"end_date\": {\n          \"type\": \"string\"\n        },\n        \"status\": {\n          \"type\": \"string\"\n        },\n        \"as_written\": {\n          \"type\": \"string\"\n        },\n        \"evidence_refs\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"location\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"stated\": {\n          \"type\": \"boolean\"\n        },\n        \"scope\": {\n          \"type\": \"string\"\n        },\n        \"evidence_refs\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"places\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"object\",\n            \"properties\": {\n              \"name\": {\n                \"type\": \"string\"\n              },\n              \"name_original\": {\n                \"type\": \"string\"\n              },\n              \"level\": {\n                \"type\": \"string\"\n              },\n              \"admin1\": {\n                \"type\": \"string\"\n              },\n              \"country\": {\n                \"type\": \"string\"\n              },\n              \"lat\": {\n                \"type\": [\n                  \"number\",\n                  \"null\"\n                ]\n              },\n              \"lon\": {\n                \"type\": [\n                  \"number\",\n                  \"null\"\n                ]\n              }\n            }\n          }\n        }\n      }\n    },\n    \"reach\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"stated\": {\n          \"type\": \"boolean\"\n        },\n        \"number\": {\n          \"type\": [\n            \"number\",\n            \"null\"\n          ]\n        },\n        \"unit\": {\n          \"type\": \"string\"\n        },\n        \"is_target\": {\n          \"type\": \"boolean\"\n        },\n        \"evidence_refs\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"cost\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"stated\": {\n          \"type\": \"boolean\"\n        },\n        \"amount\": {\n          \"type\": [\n            \"number\",\n            \"null\"\n          ]\n        },\n        \"cost_per_beneficiary\": {\n          \"type\": [\n            \"number\",\n            \"null\"\n          ]\n        },\n        \"evidence_refs\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"currency\": {\n          \"type\": \"string\"\n        },\n        \"amount_as_written\": {\n          \"type\": \"string\"\n        },\n        \"what_is_covered\": {\n          \"type\": \"string\"\n        },\n        \"funding_source\": {\n          \"type\": \"string\"\n        },\n        \"breakdown\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"object\",\n            \"properties\": {\n              \"amount\": {\n                \"type\": [\n                  \"number\",\n                  \"null\"\n                ]\n              },\n              \"item\": {\n                \"type\": \"string\"\n              },\n              \"category\": {\n                \"type\": \"string\"\n              },\n              \"currency\": {\n                \"type\": \"string\"\n              },\n              \"amount_as_written\": {\n                \"type\": \"string\"\n              },\n              \"period\": {\n                \"type\": \"string\"\n              },\n              \"evidence_ref\": {\n                \"type\": \"string\"\n              }\n            }\n          }\n        }\n      }\n    },\n    \"benefit\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"stated\": {\n          \"type\": \"boolean\"\n        },\n        \"outcome\": {\n          \"type\": \"string\"\n        },\n        \"metric\": {\n          \"type\": \"string\"\n        },\n        \"magnitude\": {\n          \"type\": \"string\"\n        },\n        \"comparison\": {\n          \"type\": \"string\"\n        },\n        \"outputs_reported\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"evidence_refs\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"outcomes\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"value\": {\n            \"type\": [\n              \"number\",\n              \"null\"\n            ]\n          },\n          \"domain\": {\n            \"type\": \"string\"\n          },\n          \"name\": {\n            \"type\": \"string\"\n          },\n          \"measure\": {\n            \"type\": \"string\"\n          },\n          \"population\": {\n            \"type\": \"string\"\n          },\n          \"comparison\": {\n            \"type\": \"string\"\n          },\n          \"unit\": {\n            \"type\": \"string\"\n          },\n          \"interpretation\": {\n            \"type\": \"string\"\n          },\n          \"uncertainty\": {\n            \"type\": \"string\"\n          },\n          \"timing\": {\n            \"type\": \"string\"\n          },\n          \"data_source\": {\n            \"type\": \"string\"\n          },\n          \"notes\": {\n            \"type\": \"string\"\n          },\n          \"evidence_ref\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"domain_fields\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"field\": {\n            \"type\": \"string\"\n          },\n          \"value\": {\n            \"type\": \"string\"\n          },\n          \"evidence_ref\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"implementation\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"requirements\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"barriers\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"facilitators\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"evidence_refs\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"evidence_strength\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"type\": {\n          \"type\": \"string\",\n          \"enum\": [\n            \"rct\",\n            \"quasi_experimental\",\n            \"observational\",\n            \"pilot_report\",\n            \"anecdotal\",\n            \"none\"\n          ]\n        },\n        \"rationale\": {\n          \"type\": \"string\"\n        }\n      }\n    },\n    \"interpretation\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"cost_benefit\": {\n          \"type\": \"string\"\n        },\n        \"credibility\": {\n          \"type\": \"string\"\n        },\n        \"gaps\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"overall\": {\n          \"type\": \"string\"\n        }\n      }\n    },\n    \"evidence\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"required\": [\n          \"id\",\n          \"field\",\n          \"quote_original\",\n          \"quote_en\"\n        ],\n        \"properties\": {\n          \"id\": {\n            \"type\": \"string\"\n          },\n          \"field\": {\n            \"type\": \"string\"\n          },\n          \"quote_original\": {\n            \"type\": \"string\"\n          },\n          \"quote_en\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    }\n  }\n}"
       },
-      "id": "b8ab0220-f895-571b-8541-9e370efa72b0",
+      "id": "f070bbf3-ad6d-55ea-81c7-17c01f4d8205",
       "name": "Extraction Schema",
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.3,
       "position": [
-        2400,
+        1420,
         280
       ]
     },
     {
       "parameters": {
-        "jsCode": "// Mark each quote found / not found in the source text; flag cost/benefit claims that no verified quote supports\nconst ctx = $('Compose Prompt').first().json;\nconst x = $input.first().json.output || {};\n// compare without whitespace and punctuation spacing: text extraction can drop or add spaces (e.g. after Bengali vowel signs)\nconst norm = (s) => String(s || '').normalize('NFC').replace(/[\\s\\u200b-\\u200d]+/g, '').toLowerCase();\nconst text = norm(ctx.fulltext);\nconst evidence = (x.evidence || []).map(e => ({ ...e, found: !!e.quote_original && text.includes(norm(e.quote_original).slice(0, 100)) }));\nconst supported = (block, name) => evidence.some(e => e.found && ((block?.evidence_refs || []).includes(e.id) || e.field === name));\nconst flags = [];\nif (!$input.first().json.output) flags.push('extraction_failed');\nif ((ctx.fulltext || '').length < 150) flags.push('no_text_extracted');\nif (x.cost?.stated && !supported(x.cost, 'cost')) flags.push('cost_without_evidence');\nif (x.benefit?.stated && !supported(x.benefit, 'benefit')) flags.push('benefit_without_evidence');\nif (evidence.some(e => !e.found)) flags.push('quote_not_found');\nconst verified = evidence.length ? evidence.filter(e => e.found).length / evidence.length : 0;\nreturn [{ json: { source_id: ctx.source_id, fields: $input.first().json.output ? { ...x, evidence } : null, flags,\n                  confidence: Math.round(100 * Math.min(x.self_confidence ?? 0.5, verified)) / 100 } }];\n"
+        "jsCode": "// 1. Check every quote occurs in the source text. 2. Compute the relevance score (Extraction Skill section 9):\n//    five criteria x 20 points; a criterion counts only if its fields are filled AND one of its quotes was found.\nconst ctx = $('Compose Prompt').first().json;\nconst out = $input.first().json.output;\nconst x = out || {};\n// compare without whitespace: text extraction can drop or add spaces (e.g. after Bengali vowel signs)\nconst norm = (s) => String(s || '').normalize('NFC').replace(/[\\s\\u200b-\\u200d]+/g, '').toLowerCase();\nconst text = norm(ctx.fulltext);\nconst evidence = (x.evidence || []).map(e => ({ ...e, found: !!e.quote_original && text.includes(norm(e.quote_original).slice(0, 100)) }));\nconst supported = (block, name) => evidence.some(e => e.found && ((block?.evidence_refs || []).includes(e.id) || e.field === name));\nconst foundIds = new Set(evidence.filter(e => e.found).map(e => e.id));\n// outcome rows and domain fields each cite one quote: mark whether it was found\nconst outcomes = (x.outcomes || []).map(o => ({ ...o, verified: foundIds.has(o.evidence_ref) }));\nconst domainFields = (x.domain_fields || []).map(d => ({ ...d, verified: foundIds.has(d.evidence_ref) }));\nconst filled = (v) => v !== null && v !== undefined && String(v).trim() !== '';\nconst p = x.project || {}, t = x.technology || {}, loc = x.location || {};\nconst criteria = [\n  ['technology', 'AI technology specified',\n   filled(t.specific) && filled(t.category) && t.category !== 'unspecified' && supported(t, 'technology')],\n  ['purpose', 'Social purpose and beneficiaries',\n   filled(p.domain) && p.domain !== 'other' && filled(p.target_beneficiaries) && supported(p, 'project')],\n  ['location', 'Specific location',\n   (loc.places || []).some(pl => ['admin1', 'admin2', 'city', 'site'].includes(pl.level)) && supported(loc, 'location')],\n  ['implementation', 'Concrete implementation',\n   filled(p.implementing_org) && ['pilot', 'scaled', 'discontinued'].includes(p.deployment_stage) && supported(p, 'project')],\n  ['quantified', 'Quantified facts',\n   (x.cost?.stated && Number(x.cost?.amount) > 0 && supported(x.cost, 'cost')) ||\n   (x.reach?.stated && Number(x.reach?.number) > 0 && supported(x.reach, 'reach')) ||\n   (x.benefit?.stated && filled(x.benefit?.magnitude) && supported(x.benefit, 'benefit')) ||\n   outcomes.some(o => o.value !== null && o.value !== undefined && o.value !== '' && Number.isFinite(Number(o.value)) && o.verified)],\n].map(([key, label, met]) => ({ key, label, met: !!met, points: met ? 20 : 0 }));\nconst score = out ? criteria.reduce((sum, c) => sum + c.points, 0) : 0;\nconst found = evidence.filter(e => e.found).length;\nconst flags = [];\nif (!out) flags.push('extraction_failed');\nif ((ctx.fulltext || '').length < 40) flags.push('no_text_extracted');\nelse if ((ctx.fulltext || '').length < 3000) flags.push('abstract_only');\nif (x.cost?.stated && !supported(x.cost, 'cost')) flags.push('cost_without_evidence');\nif (x.benefit?.stated && !supported(x.benefit, 'benefit')) flags.push('benefit_without_evidence');\nif (evidence.some(e => !e.found)) flags.push('quote_not_found');\nif (outcomes.some(o => !o.verified)) flags.push('outcome_without_evidence');\nreturn [{ json: { source_id: ctx.source_id, flags, relevance_score: score,\n  fields: out ? { ...x, run_domain: ctx.domain || '', outcomes, domain_fields: domainFields, evidence,\n                  relevance: { score, criteria, quotes_found: found, quotes_total: evidence.length } } : null } }];\n"
       },
-      "id": "78617feb-b7f1-5b44-b99d-e4769063f755",
+      "id": "ff5b7981-1278-5352-a7de-7058a70e8a26",
       "name": "Verify Evidence",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2560,
+        1560,
         40
       ]
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO extractions (source_id, fields, flags, confidence, status)\nVALUES ($1, $2::jsonb, $3::jsonb, $4, CASE WHEN $2::jsonb->>'is_ai4sg' = 'false' THEN 'filtered_out' ELSE 'pending_review' END)",
+        "query": "WITH e AS (\n  INSERT INTO extractions (source_id, fields, flags, relevance_score, status)\n  VALUES ($1, $2::jsonb, $3::jsonb, $4, CASE WHEN $2::jsonb->>'is_ai4sg' = 'false' THEN 'filtered_out' ELSE 'pending_review' END)\n  RETURNING id, status\n), s AS (UPDATE sources SET status = 'extracted' WHERE id = $1)\nSELECT id AS extraction_id, status FROM e",
         "options": {
-          "queryReplacement": "={{ [ $json.source_id, JSON.stringify($json.fields), JSON.stringify($json.flags), $json.confidence ] }}"
+          "queryReplacement": "={{ [ $json.source_id, JSON.stringify($json.fields), JSON.stringify($json.flags), $json.relevance_score ] }}"
         }
       },
-      "id": "2a5ac23f-cdd1-5617-93f3-f0ffe1d2a2b1",
+      "id": "c0142d7b-c7b5-5a1a-8519-5dd11e8262d8",
       "name": "Save for Review",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        2800,
+        1780,
         40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "proj",
+              "leftValue": "={{ $('Verify Evidence').first().json.fields?.is_ai4sg === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "d3e8ef4e-3c30-563d-ab2c-f1174bb79fcd",
+      "name": "About an AI Project?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2000,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT p.id, p.code, p.name, p.aliases, p.implementing_org, p.countries, p.summary, p.synthesis,\n       (SELECT count(*) FROM source_projects sp WHERE sp.project_id = p.id) AS sources\nFROM ai_projects p",
+        "options": {}
+      },
+      "id": "211bc9c6-1e5c-5e02-83e6-d2a07d222aa8",
+      "name": "Known Projects",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2220,
+        -60
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const STOP = new Set(['the','a','an','of','for','and','in','on','to','with','by','from','at','project','programme','program','pilot',\n  'initiative','system','platform','tool','app','application','ai','artificial','intelligence','based','using','study','trial',\n  'evaluation','scheme','model','national','smart','digital','new','phase','service','services']);\nconst toks = (s) => new Set(String(s || '').toLowerCase().normalize('NFKD').replace(/[^\\p{L}\\p{N}]+/gu, ' ').split(' ')\n  .filter(w => w && !STOP.has(w)));\nconst overlap = (a, b) => { const A = toks(a), B = toks(b); if (!A.size || !B.size) return 0;\n  let i = 0; A.forEach(w => { if (B.has(w)) i++; }); return i / Math.min(A.size, B.size); };\nconst sameCountry = (country, list) => !country || !Array.isArray(list) || !list.length ||\n  list.some(c => String(c).toLowerCase() === String(country).toLowerCase());\n// how strongly a source (project name guess, organisation, country) points at an existing project: 0..1\nfunction projectScore(guess, org, country, p) {\n  if (!sameCountry(country, p.countries)) return 0;\n  const names = [p.name, ...(Array.isArray(p.aliases) ? p.aliases : [])];\n  let s = Math.max(0, ...names.map(n => overlap(guess, n)));\n  if (org && p.implementing_org && overlap(org, p.implementing_org) >= 0.6) s = Math.min(1, s + 0.25);\n  return s;\n}\nconst guessKey = (g) => [...toks(g)].sort().join(' ');\n// Linking a source (or a project) to a known project: the name, the organisation, the places and the AI products all count.\nconst GENERIC = new Set(['cxr','chest','ray','xray','software','version','deep','learning','algorithm','algorithms','model','models','system',\n  'tool','cad','detection','reader','screening','computer','aided','assisted','insight','based']);\nconst prodToks = (list) => { const out = new Set(); (Array.isArray(list) ? list : [list]).forEach(x => toks(x).forEach(w => {\n  if (w.length >= 3 && !GENERIC.has(w) && !/^v?\\d[\\d.]*$/.test(w)) out.add(w); })); return out; };\nconst placeKeys = (places, fine) => new Set((Array.isArray(places) ? places : []).filter(pl => pl && (!fine || ['admin2', 'city', 'site'].includes(pl.level)))\n  .flatMap(pl => fine ? [pl.name] : [pl.name, pl.admin1]).filter(Boolean).map(x => String(x).toLowerCase().trim()));\nconst lc = (x) => String(x || '').toLowerCase().trim();\n// organisations match when they share at least two distinctive words, or one long distinctive word when a side has only one\nconst ORGSTOP = new Set(['ministry','department','health','university','hospital','centre','center','international','research','government',\n  'foundation','institute','organisation','organization','office','division','society','association','limited','ltd','inc','private']);\nfunction orgMatch(a, b) {\n  const A = [...toks(a)].filter(w => !ORGSTOP.has(w)), B = new Set([...toks(b)].filter(w => !ORGSTOP.has(w)));\n  const shared = A.filter(w => B.has(w));\n  return shared.length >= 2 || (shared.length === 1 && Math.min(A.length, B.size) === 1 && shared[0].length >= 5);\n}\nfunction linkScore(me, p) {\n  const sy = p.synthesis || {};\n  const pc = [...(p.countries || []), ...(sy.countries || [])].map(lc);\n  if (me.countries.length && pc.length && !me.countries.some(c => pc.includes(lc(c)))) return { score: 0, why: [] };\n  const names = [p.name, ...(p.aliases || []), ...(sy.names || [])].filter(Boolean);\n  let score = Math.max(0, ...names.map(n => overlap(me.name, n)));\n  const why = score >= 0.5 ? ['similar name'] : [];\n  const orgs = [p.implementing_org, ...(sy.orgs || [])].filter(Boolean);\n  if (me.org && orgs.some(o => orgMatch(me.org, o))) { score += 0.35; why.push('same organisation'); }\n  const fa = placeKeys(me.places, true), fb = placeKeys(sy.places, true);\n  if ([...fa].some(x => fb.has(x))) { score += 0.2; why.push('same place'); }\n  else { const a = placeKeys(me.places, false), b = placeKeys(sy.places, false); if ([...a].some(x => b.has(x))) { score += 0.1; why.push('same region'); } }\n  const pa = prodToks(me.products), pb = prodToks(sy.products || []);\n  if ([...pa].some(x => pb.has(x))) { score += 0.25; why.push('same AI product'); }\n  return { score: Math.min(1, Math.round(score * 100) / 100), why };\n}\n// the definition comes from the Extraction Skill (section \"One project, many sources\"), so experts can change it\nconst DEFAULT_DEFINITION = 'A project is one programme that puts AI into use for a social purpose: who runs it, what the AI does for whom, ' +\n  'and where. Several studies, reports or news about the same programme, its phases, sites and software versions, and several products ' +\n  'compared within it are ONE project. Unrelated organisations each adopting the same commercial product are different projects.';\nfunction projectDefinition(skillText) {\n  const m = String(skillText || '').match(/\\n## \\d+\\.\\s*One project, many sources[^\\n]*\\n([\\s\\S]*?)(?=\\n## |\\s*$)/);\n  return m ? m[1].trim() : DEFAULT_DEFINITION;\n}\nconst describe = (x) => [`Project: ${x.name || 'unnamed'}`, `Run by: ${x.org || 'not stated'}`, `Countries: ${(x.countries || []).join(', ') || 'not stated'}`,\n  `Places: ${[...new Set((x.places || []).map(pl => pl.name).filter(Boolean))].slice(0, 8).join(', ') || 'not stated'}`,\n  `AI products: ${(Array.isArray(x.products) ? x.products : [x.products]).filter(Boolean).join('; ') || 'not stated'}`,\n  `What it is: ${String(x.summary || '').slice(0, 900)}`].join('\\n');\nfunction judgePrompt(definition, me, cands) {\n  return `## Same project check\\nSources about the same project (deployment) are shown together to the experts, so they must be linked.\\n\\n` +\n    `### What counts as one project\\n${definition}\\n\\n### New item\\n${describe(me)}\\n\\n### Known projects (suggested because of: name, organisation, place or product)\\n` +\n    cands.map(c => `#### ${c.code} (${(c.why || []).join(', ') || 'similar'}; ${c.sources || 1} source${c.sources > 1 ? 's' : ''})\\n${describe(c)}`).join('\\n\\n') +\n    `\\n\\nIs the new item about the SAME project as one of the known projects, by the definition above? ` +\n    `Return same_as: that project's code (e.g. P-00012) or \"\" if none, and reason: one English sentence.`;\n}\nconst projectView = (p) => { const sy = p.synthesis || {}; return { code: p.code, id: p.id, name: p.name, sources: Number(p.sources) || 1,\n  org: p.implementing_org || (sy.orgs || [])[0] || '', countries: sy.countries || p.countries || [], places: sy.places || [],\n  products: sy.products || [], summary: (sy.llm && sy.llm.summary) || p.summary || '' }; };\n\n// Candidates among known projects: same country, and a similar name, the same organisation, place or AI product.\n// The model judges every candidate set with the experts' definition of one project (Extraction Skill, section 10).\nconst f = $('Verify Evidence').first().json.fields || {};\nconst p = f.project || {};\nconst name = p.name || $('Load Source').first().json.project_guess || f.headline || '';\nconst countries = Array.isArray(p.countries) && p.countries.length ? p.countries : [$('Load Source').first().json.country];\nconst me = { name, org: p.implementing_org || '', countries, places: (f.location || {}).places || [],\n             products: [f.technology?.model_or_product].filter(Boolean), domain: $('Source to Process').first().json.domain || '',\n             summary: [f.headline, f.source?.summary_en].filter(Boolean).join(' ') };\nconst projects = $input.all().map(i => i.json).filter(x => x.id);\nconst scored = projects.map(x => ({ x, ...linkScore(me, x) })).filter(c => c.score >= 0.5)\n  .sort((a, b) => b.score - a.score).slice(0, 4).map(c => ({ ...projectView(c.x), score: c.score, why: c.why }));\nlet skill = '';\n$('Files to Text').all().forEach((t, i) => { const b = $('Load Skills + Examples').all()[i].binary.data;\n  if ((b.directory || '').endsWith('/extraction') && b.fileName === 'SKILL.md') skill = t.json.data; });\nconst prompt = judgePrompt(projectDefinition(skill), me, scored);\nreturn [{ json: { me, candidates: scored.map(({ id, code, name, score, why }) => ({ id, code, name, score, why })), prompt } }];\n"
+      },
+      "id": "e1108ce0-e060-5bef-b7c6-533fb26a3705",
+      "name": "Match Project",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2440,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.candidates.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "76c86f1d-f1da-51ca-b595-207bd8a98e07",
+      "name": "Close Match?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2660,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "hasOutputParser": true
+      },
+      "id": "b34f04f7-0cfd-5cd9-9dde-54a48f4f2274",
+      "name": "Same Project?",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        2880,
+        -160
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "gpt-6-luna"
+        },
+        "options": {
+          "reasoningEffort": "medium",
+          "timeout": 180000
+        }
+      },
+      "id": "3ff26396-5d47-5e63-bd26-4608e0291afa",
+      "name": "LLM (Luna)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        2800,
+        80
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "ai4sgOpenAiApi01",
+          "name": "AI4SG LLM (OpenAI-compatible)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"required\": [\n    \"same_as\",\n    \"reason\"\n  ],\n  \"properties\": {\n    \"same_as\": {\n      \"type\": \"string\"\n    },\n    \"reason\": {\n      \"type\": \"string\"\n    }\n  }\n}"
+      },
+      "id": "8505326c-6cd5-5155-9245-c446743cc883",
+      "name": "Same Project Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2960,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// The model's answer counts only if it names one of the offered candidates; otherwise a new project is created.\nconst m = $('Match Project').first().json;\nlet judge = null; try { judge = $('Same Project?').first().json.output || null; } catch (e) {}\nconst hit = judge && m.candidates.find(c => c.code === String(judge.same_as || '').trim());\nreturn [{ json: { source_id: $('Load Source').first().json.id, project_id: hit ? hit.id : null,\n  name: m.me.name || 'Unnamed project', org: m.me.org, countries: m.me.countries, domain: m.me.domain, summary: m.me.summary.slice(0, 600),\n  method: hit ? 'llm' : 'new', product: String((m.me.products || [])[0] || '').split(/\\s*;\\s*/)[0].slice(0, 200),\n  reason: hit ? `${judge.reason} (suggested because of: ${(hit.why || []).join(', ')})`\n              : (judge ? `Checked against ${m.candidates.map(c => c.code).join(', ')}: ${judge.reason || 'not the same'}` : 'No similar project known') } }];\n"
+      },
+      "id": "3e71e94f-6c70-56c4-84c8-7d55b966ac08",
+      "name": "Decide Project",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3100,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH new_p AS (\n  INSERT INTO ai_projects (name, implementing_org, countries, domain, summary, tool_id)\n  SELECT $2, NULLIF($3, ''), $4::jsonb, NULLIF($5, ''), $6, ai4sg_tool_for($10, $3) WHERE $7::bigint IS NULL\n  RETURNING id\n), target AS (\n  SELECT id FROM new_p UNION ALL SELECT $7::bigint WHERE $7::bigint IS NOT NULL\n), named AS (   -- keep the name this source uses as an alias of the known project\n  UPDATE ai_projects p SET updated_at = now(),\n         aliases = CASE WHEN lower(p.name) <> lower($2) AND NOT p.aliases @> to_jsonb(ARRAY[$2]::text[]) THEN p.aliases || to_jsonb(ARRAY[$2]::text[]) ELSE p.aliases END,\n         tool_id = COALESCE(p.tool_id, ai4sg_tool_for($10, p.implementing_org))\n  FROM target t WHERE p.id = t.id AND $7::bigint IS NOT NULL\n)\nINSERT INTO source_projects (source_id, project_id, method, reason)\nSELECT $1, id, $8, $9 FROM target\nON CONFLICT (source_id) DO UPDATE SET project_id = EXCLUDED.project_id, method = EXCLUDED.method, reason = EXCLUDED.reason, created_at = now()\nRETURNING project_id",
+        "options": {
+          "queryReplacement": "={{ [ $json.source_id, $json.name, $json.org, JSON.stringify($json.countries), $json.domain, $json.summary, $json.project_id, $json.method, $json.reason, $json.product || '' ] }}"
+        }
+      },
+      "id": "54b3e31b-0b8e-5d8f-acc5-ea5117a7f577",
+      "name": "Save Project Link",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3320,
+        -60
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "pl",
+              "leftValue": "={{ Number($('Load Source').first().json.placed_project_id || 0) }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "50c28990-0eb9-5012-bb5e-8e1c4c6c756e",
+      "name": "Placed Already?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2220,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE ai_projects p SET updated_at = now(),\n       implementing_org = COALESCE(p.implementing_org, NULLIF($3, '')),\n       tool_id = COALESCE(p.tool_id, ai4sg_tool_for($2, COALESCE(p.implementing_org, $3))),\n       aliases = CASE WHEN $4 <> '' AND lower(p.name) <> lower($4) AND NOT p.aliases @> to_jsonb(ARRAY[$4]::text[])\n                      THEN p.aliases || to_jsonb(ARRAY[$4]::text[]) ELSE p.aliases END\nWHERE p.id = $1 RETURNING p.id AS project_id, p.code",
+        "options": {
+          "queryReplacement": "={{ [ $('Load Source').first().json.placed_project_id, String($('Verify Evidence').first().json.fields?.technology?.model_or_product || '').split(/\\s*;\\s*/)[0], $('Verify Evidence').first().json.fields?.project?.implementing_org || '', $('Verify Evidence').first().json.fields?.project?.name || '' ] }}"
+        }
+      },
+      "id": "7fb2be6e-5d64-5bc1-b3bc-d391bf88eea0",
+      "name": "Keep Placement",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2440,
+        -360
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM source_projects WHERE source_id = $1 AND method IN ('organised', 'duplicate');\nDELETE FROM ai_projects p WHERE NOT EXISTS (SELECT 1 FROM source_projects sp WHERE sp.project_id = p.id);\nSELECT $1::bigint AS source_id",
+        "options": {
+          "queryReplacement": "={{ [ $('Load Source').first().json.id ] }}"
+        }
+      },
+      "id": "fe137d59-6963-5b02-bd38-082cfd279dfb",
+      "name": "Drop Placement",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2220,
+        240
       ],
       "credentials": {
         "postgres": {
@@ -471,54 +544,25 @@
       "main": [
         [
           {
-            "node": "Download",
+            "node": "Load Source",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Download": {
+    "Load Source": {
       "main": [
         [
           {
-            "node": "PDF?",
+            "node": "Read from Library",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "PDF?": {
-      "main": [
-        [
-          {
-            "node": "Extract PDF Text",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Extract HTML Text",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Extract PDF Text": {
-      "main": [
-        [
-          {
-            "node": "Compose Prompt",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Extract HTML Text": {
+    "Read from Library": {
       "main": [
         [
           {
@@ -533,36 +577,7 @@
       "main": [
         [
           {
-            "node": "Relevance Screen",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Relevance Screen": {
-      "main": [
-        [
-          {
-            "node": "Worth Expert Time?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Worth Expert Time?": {
-      "main": [
-        [
-          {
             "node": "Extract & Interpret",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Save as Filtered Out",
             "type": "main",
             "index": 0
           }
@@ -591,23 +606,110 @@
         ]
       ]
     },
-    "LLM (Luna)": {
-      "ai_languageModel": [
+    "Save for Review": {
+      "main": [
         [
           {
-            "node": "Relevance Screen",
-            "type": "ai_languageModel",
+            "node": "About an AI Project?",
+            "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Screen Schema": {
-      "ai_outputParser": [
+    "About an AI Project?": {
+      "main": [
         [
           {
-            "node": "Relevance Screen",
-            "type": "ai_outputParser",
+            "node": "Placed Already?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Drop Placement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Placed Already?": {
+      "main": [
+        [
+          {
+            "node": "Keep Placement",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Known Projects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Known Projects": {
+      "main": [
+        [
+          {
+            "node": "Match Project",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Project": {
+      "main": [
+        [
+          {
+            "node": "Close Match?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Close Match?": {
+      "main": [
+        [
+          {
+            "node": "Same Project?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Decide Project",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Same Project?": {
+      "main": [
+        [
+          {
+            "node": "Decide Project",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide Project": {
+      "main": [
+        [
+          {
+            "node": "Save Project Link",
+            "type": "main",
             "index": 0
           }
         ]
@@ -629,6 +731,28 @@
         [
           {
             "node": "Extract & Interpret",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM (Luna)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Same Project?",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Same Project Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Same Project?",
             "type": "ai_outputParser",
             "index": 0
           }

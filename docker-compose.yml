@@ -89,6 +89,29 @@ services:
     depends_on:
       - n8n
 
+  # B · Search runs each search task as a Codex CLI session here (multi-step agent with a shell and web search).
+  # Not published to the host: only n8n calls it. Each run's transcript and downloads land in ./codex-runs.
+  codex-runner:
+    build:
+      context: ./codex-runner
+      args:
+        - CODEX_VERSION=${CODEX_VERSION:-0.161.0}
+    restart: unless-stopped
+    environment:
+      - CODEX_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - CODEX_MODEL=${CODEX_SEARCH_MODEL:-gpt-6-luna}
+      - CODEX_REASONING=${CODEX_SEARCH_REASONING:-high}
+      - CODEX_MAX_PARALLEL=${CODEX_MAX_PARALLEL:-3}
+      - CODEX_TIMEOUT_MIN=${CODEX_TIMEOUT_MIN:-20}
+      - ACADEMIC_LIMIT_PER_DB=${ACADEMIC_LIMIT_PER_DB:-50}   # records per database per academic search task
+      - CASCADE_MAX_PER_TASK=${CASCADE_MAX_PER_TASK:-10}     # leads followed one level from listed sources
+      - SCHOLAR_MAILTO=${SCHOLAR_MAILTO:-}                   # optional e-mail for OpenAlex's polite pool
+      - OPENALEX_API_KEY=${OPENALEX_API_KEY:-}               # optional free OpenAlex key: 10x the daily search budget
+    volumes:
+      - ./codex-runs:/runs
+      - ./library:/library        # downloaded pages and PDFs of every source, with their text
+
   # Optional BI layer: docker compose --profile bi up -d  ->  http://localhost:3000
   metabase:
     image: metabase/metabase:latest

@@ -5,9 +5,9 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## B · Search (OpenAI web search)\nCalled once per task, e.g. **Bangladesh × bn × gov_report**. One OpenAI call with the built-in **web search** tool: the expert **Search Skill** is the instruction, the run page adds topic focus, year limit and max results; the model plans queries (local language first, then English), searches, opens pages and PDFs, and returns a list of candidate sources.\nSearch is localised with the task's country code. Output is forced into a fixed JSON list (type, country, language, format, why relevant).",
-        "width": 1300,
-        "height": 150
+        "content": "## B · Search\nReceives all search tasks of a run (e.g. **Bangladesh × bn × gov_report**) and runs each one with the engine chosen on the run page:\n**Codex agent (default):** one Codex CLI session per task in the `codex-runner` container, 3 at a time. The Search Skill becomes Codex's `AGENTS.md`; Codex works in many steps with live web search and a shell (curl, pdftotext): it opens pages, downloads and reads PDFs, follows publication lists, and checks every candidate before listing it. Each session's full transcript and downloads are kept in `./codex-runs/`.\n**Single API call:** the earlier engine, one OpenAI call with built-in web search per task.\nEvery task is logged in the `search_runs` table (engine, time, tokens, commands, candidates) for comparison.",
+        "width": 1720,
+        "height": 200
       },
       "id": "995ca809-dacc-5564-8979-d06ba7452613",
       "name": "Note · title",
@@ -15,14 +15,14 @@
       "typeVersion": 1,
       "position": [
         -60,
-        -290
+        -400
       ]
     },
     {
       "parameters": {
-        "content": "### 🧑‍🔬 Search Skill in\nThe full text of `skills/search/SKILL.md` arrives here and becomes the model's instructions.",
-        "width": 400,
-        "height": 270,
+        "content": "### 🧑‍🔬 Search Skill in\nThe full text of `skills/search/SKILL.md`, plus the domain module chosen on the run page, arrives with every task. Codex receives it as `AGENTS.md`, the single API call as its instructions.",
+        "width": 520,
+        "height": 140,
         "color": 4
       },
       "id": "76131b47-ea63-53d0-b298-80b671167342",
@@ -31,7 +31,7 @@
       "typeVersion": 1,
       "position": [
         -60,
-        -110
+        -180
       ]
     },
     {
@@ -62,6 +62,18 @@
             },
             {
               "name": "max_results"
+            },
+            {
+              "name": "engine"
+            },
+            {
+              "name": "domain"
+            },
+            {
+              "name": "domain_label"
+            },
+            {
+              "name": "run_id"
             }
           ]
         }
@@ -77,6 +89,66 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "eng",
+              "leftValue": "={{ $json.engine }}",
+              "rightValue": "api",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "7e1d5dbe-1659-500f-83c1-06dbd77b9929",
+      "name": "Codex or API?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://codex-runner:8787/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ search_skill: $json.search_skill, country: $json.country, country_code: $json.country_code, language: $json.language, source_type: $json.source_type, focus: $json.focus, since_year: $json.since_year, domain: $json.domain || '', domain_label: $json.domain_label || '', max_results: Number($json.max_results) || 10 }) }}",
+        "options": {
+          "timeout": 10800000,
+          "batching": {
+            "batch": {
+              "batchSize": 3,
+              "batchInterval": 0
+            }
+          }
+        }
+      },
+      "id": "e91e233b-1fb6-5460-b3e0-76cd6f4555cb",
+      "name": "Codex Agent Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        -100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
         "resource": "text",
         "operation": "response",
         "modelId": {
@@ -89,7 +161,7 @@
             {
               "type": "text",
               "role": "user",
-              "content": "=Country: {{ $json.country }}\nSearch language: {{ $json.language }}\nSource type: {{ $json.source_type }}\n{{ $json.focus ? 'Topic focus: ' + $json.focus + '\\n' : '' }}{{ $json.since_year ? 'Only sources published in ' + $json.since_year + ' or later.\\n' : '' }}Find AI-for-social-good projects, deployments, evaluations or policies for this task, following your instructions. Open each promising page or PDF before listing it. Return at most {{ $json.max_results || 10 }} candidates, best first."
+              "content": "=Country: {{ $json.country }}\nSearch language: {{ $json.language }}\nSource type: {{ $json.source_type }}\n{{ $json.domain_label ? 'Domain: ' + $json.domain_label + ' (follow the domain module at the end of your instructions: list only sources that meet its scope, and use its search terms and sources first)\\n' : '' }}{{ $json.focus ? 'Topic focus: ' + $json.focus + '\\n' : '' }}{{ $json.since_year ? 'Only sources published in ' + $json.since_year + ' or later.\\n' : '' }}Find AI-for-social-good projects, deployments, evaluations or policies for this task, following your instructions. Open each promising page or PDF before listing it. List every qualifying source you find, aiming for at least {{ $json.max_results || 10 }}. When a source you list points to other qualifying work (its references, the report behind a news story), list that too, one level only, with found_via = the URL that led you there. In files, list the full-text PDF, appendices or the underlying report a reader needs (never datasets)."
             }
           ]
         },
@@ -105,7 +177,7 @@
             "textOptions": {
               "type": "json_schema",
               "name": "result",
-              "schema": "{\n  \"type\": \"object\",\n  \"required\": [\n    \"candidates\"\n  ],\n  \"additionalProperties\": false,\n  \"properties\": {\n    \"candidates\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"additionalProperties\": false,\n        \"required\": [\n          \"url\",\n          \"title\",\n          \"title_en\",\n          \"source_type\",\n          \"format\",\n          \"country\",\n          \"language\",\n          \"why_relevant\"\n        ],\n        \"properties\": {\n          \"url\": {\n            \"type\": \"string\"\n          },\n          \"title\": {\n            \"type\": \"string\"\n          },\n          \"title_en\": {\n            \"type\": \"string\",\n            \"description\": \"English translation of the title\"\n          },\n          \"source_type\": {\n            \"type\": \"string\",\n            \"enum\": [\n              \"news\",\n              \"journal\",\n              \"open_source\",\n              \"gov_website\",\n              \"gov_report\",\n              \"conference_report\",\n              \"ngo_report\",\n              \"other\"\n            ]\n          },\n          \"format\": {\n            \"type\": \"string\",\n            \"enum\": [\n              \"html\",\n              \"pdf\"\n            ]\n          },\n          \"country\": {\n            \"type\": \"string\"\n          },\n          \"language\": {\n            \"type\": \"string\"\n          },\n          \"why_relevant\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    }\n  }\n}",
+              "schema": "{\n  \"type\": \"object\",\n  \"required\": [\n    \"candidates\"\n  ],\n  \"additionalProperties\": false,\n  \"properties\": {\n    \"candidates\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"additionalProperties\": false,\n        \"required\": [\n          \"url\",\n          \"title\",\n          \"title_en\",\n          \"source_type\",\n          \"format\",\n          \"country\",\n          \"language\",\n          \"why_relevant\",\n          \"doi\",\n          \"found_via\",\n          \"relation\",\n          \"project_name\",\n          \"files\"\n        ],\n        \"properties\": {\n          \"url\": {\n            \"type\": \"string\"\n          },\n          \"title\": {\n            \"type\": \"string\"\n          },\n          \"doi\": {\n            \"type\": \"string\"\n          },\n          \"found_via\": {\n            \"type\": \"string\"\n          },\n          \"relation\": {\n            \"type\": \"string\",\n            \"enum\": [\n              \"\",\n              \"cites\",\n              \"cited_by\",\n              \"mentioned_in\"\n            ]\n          },\n          \"project_name\": {\n            \"type\": \"string\"\n          },\n          \"files\": {\n            \"type\": \"array\",\n            \"items\": {\n              \"type\": \"object\",\n              \"additionalProperties\": false,\n              \"required\": [\n                \"url\",\n                \"kind\",\n                \"note\"\n              ],\n              \"properties\": {\n                \"url\": {\n                  \"type\": \"string\"\n                },\n                \"note\": {\n                  \"type\": \"string\"\n                },\n                \"kind\": {\n                  \"type\": \"string\",\n                  \"enum\": [\n                    \"full_text\",\n                    \"appendix\",\n                    \"related_report\"\n                  ]\n                }\n              }\n            }\n          },\n          \"title_en\": {\n            \"type\": \"string\",\n            \"description\": \"English translation of the title\"\n          },\n          \"source_type\": {\n            \"type\": \"string\",\n            \"enum\": [\n              \"news\",\n              \"journal\",\n              \"open_source\",\n              \"gov_website\",\n              \"gov_report\",\n              \"conference_report\",\n              \"ngo_report\",\n              \"other\"\n            ]\n          },\n          \"format\": {\n            \"type\": \"string\",\n            \"enum\": [\n              \"html\",\n              \"pdf\"\n            ]\n          },\n          \"country\": {\n            \"type\": \"string\"\n          },\n          \"language\": {\n            \"type\": \"string\"\n          },\n          \"why_relevant\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    }\n  }\n}",
               "strict": false
             }
           }
@@ -117,13 +189,13 @@
           }
         }
       },
-      "id": "d0ce932a-3866-5d07-89da-728f0253a4cb",
-      "name": "Search the Web",
+      "id": "bb4c291e-32b8-5a89-8156-4f9fcd4e816c",
+      "name": "Single API Search",
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 2.1,
       "position": [
-        460,
-        40
+        520,
+        180
       ],
       "credentials": {
         "openAiApi": {
@@ -135,14 +207,52 @@
     },
     {
       "parameters": {
-        "jsCode": "// Pull the JSON answer out of the response, one item per candidate, with a normalised URL for de-duplication\nconst j = $input.first().json;\nconst text = j.output?.flatMap(o => o.content || []).find(c => c.type === 'output_text')?.text ?? j.text ?? '';\nlet list = []; try { list = (typeof text === 'object' ? text : JSON.parse(text)).candidates || []; } catch (e) {}\nconst max = Number($('Task + Search Skill').first().json.max_results) || 10;\nreturn list.filter(c => /^https?:\\/\\//.test(c.url || '')).slice(0, max)\n  .map(c => ({ json: { ...c, url_norm: c.url.replace(/#.*$/, '').replace(/[?&]utm_[^&]+/g, '').replace(/\\/$/, '').toLowerCase() } }));\n"
+        "jsCode": "// One item per task: ALL its candidates (cleaned, with a normalised URL for de-duplication; nothing is cut) and\n// statistics for search_runs, including the fixed academic databases' hits.\nconst norm = (u) => u.replace(/#.*$/, '').replace(/[?&]utm_[^&]+/g, '').replace(/\\/$/, '').toLowerCase();\nreturn $input.all().map((it, i) => {\n  const task = $('Task + Search Skill').itemMatching(i).json;\n  const j = it.json, codex = task.engine !== 'api';\n  let list = [], stats = {}, error = '', runId = '', queries = [];\n  if (codex) {\n    list = j.candidates || []; stats = j.stats || {}; runId = j.run_id || ''; queries = j.queries_tried || [];\n    error = j.ok ? '' : (j.error?.message || j.error || 'codex runner failed');\n  } else {\n    const text = j.output?.flatMap(o => o.content || []).find(c => c.type === 'output_text')?.text ?? j.text ?? '';\n    try { list = (typeof text === 'object' ? text : JSON.parse(text)).candidates || []; } catch (e) { error = j.error?.message || 'no parsable answer'; }\n    stats = { input_tokens: j.usage?.input_tokens || 0, output_tokens: j.usage?.output_tokens || 0,\n              web_searches: (j.output || []).filter(o => o.type === 'web_search_call').length };\n  }\n  const candidates = list.filter(c => /^https?:\\/\\//.test(c.url || ''))\n    .map(c => ({ ...c, why_relevant: c.why_relevant + (c.checked ? ` [Checked: ${c.checked}]` : ''), url_norm: norm(c.url),\n                 search_engine: codex ? 'codex' : 'api', domain: task.domain || '', database: c.database || 'web',\n                 doi: String(c.doi || '').replace(/^https?:\\/\\/(dx\\.)?doi\\.org\\//i, '').trim(),\n                 found_via_url: /^https?:\\/\\//.test(c.found_via || '') ? c.found_via : '', relation: c.found_via ? (c.relation || '') : '',\n                 files: (Array.isArray(c.files) ? c.files : []).filter(f => /^https?:\\/\\//.test(f?.url || '')) }));\n  return { json: { candidates, run: { pipeline_run: task.run_id || null, academic: codex ? (j.academic_log || []) : [],\n    engine: codex ? 'codex' : 'api', domain: task.domain || '', country: task.country, language: task.language, source_type: task.source_type,\n    candidates: candidates.length, duration_s: stats.duration_s ?? null, commands: stats.commands ?? null, web_searches: stats.web_searches ?? null,\n    input_tokens: stats.input_tokens ?? null, cached_input_tokens: stats.cached_input_tokens ?? null, output_tokens: stats.output_tokens ?? null,\n    codex_run: runId, queries, error: String(error).slice(0, 500) } } };\n});\n"
       },
-      "id": "af8d60f3-26fd-56c2-bbd4-43a3740a9cb1",
-      "name": "Clean Candidates",
+      "id": "f8247b2c-b254-50b3-aee5-8212af565621",
+      "name": "Collect Results",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        760,
+        820,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- run_id = the Codex session folder in ./codex-runs; pipeline_run = the run page's run (runs.id)\nINSERT INTO search_runs (engine, domain, country, language, source_type, candidates, duration_s, commands, web_searches,\n                         input_tokens, cached_input_tokens, output_tokens, run_id, queries, error, academic, pipeline_run)\nSELECT engine, NULLIF(domain, ''), country, language, source_type, candidates, duration_s, commands, web_searches,\n       input_tokens, cached_input_tokens, output_tokens, NULLIF(codex_run, ''), queries, NULLIF(error, ''), academic, pipeline_run\nFROM jsonb_to_recordset($1::jsonb) AS r(engine text, domain text, country text, language text, source_type text, candidates int, duration_s int,\n     commands int, web_searches int, input_tokens bigint, cached_input_tokens bigint, output_tokens bigint, codex_run text, queries jsonb, error text,\n     academic jsonb, pipeline_run bigint)",
+        "options": {
+          "queryReplacement": "={{ [ JSON.stringify($input.all().map(i => i.json.run)) ] }}"
+        }
+      },
+      "id": "ca2e0e94-cc5f-5e59-9b06-cb70f3f03e17",
+      "name": "Log Search Runs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1060,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// what workflow A receives: one item per candidate, from all tasks\nreturn $('Collect Results').all().flatMap(i => i.json.candidates).map(c => ({ json: c }));\n"
+      },
+      "id": "27d32cf3-f760-5a42-bfd0-ef13c81ba369",
+      "name": "Candidates Out",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
         40
       ]
     }
@@ -152,18 +262,69 @@
       "main": [
         [
           {
-            "node": "Search the Web",
+            "node": "Codex or API?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Search the Web": {
+    "Codex or API?": {
       "main": [
         [
           {
-            "node": "Clean Candidates",
+            "node": "Codex Agent Search",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Single API Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Codex Agent Search": {
+      "main": [
+        [
+          {
+            "node": "Collect Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Single API Search": {
+      "main": [
+        [
+          {
+            "node": "Collect Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Results": {
+      "main": [
+        [
+          {
+            "node": "Log Search Runs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Search Runs": {
+      "main": [
+        [
+          {
+            "node": "Candidates Out",
             "type": "main",
             "index": 0
           }

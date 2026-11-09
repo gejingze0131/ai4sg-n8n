@@ -32,10 +32,9 @@ print_addresses() {
   local base="${1%/}"
   cat <<EOF
 
-  Share these with the others:
+  Share these with the others (no login needed; anyone with the link can use them while shared):
     Run page   : $base/form/ai4sg-run
     Audit page : $base/webhook/ai4sg-audit
-    Login      : user "$(envget AI4SG_PAGE_USER)", password "$(envget AI4SG_PAGE_PASSWORD)"   (both pages)
   The n8n editor is also reachable at $base , behind your n8n owner login.
 
 EOF

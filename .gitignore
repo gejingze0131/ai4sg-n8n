@@ -3,5 +3,18 @@
 .setup-done
 n8n/.render/
 backup*.sql
+codex-runs/*
+!codex-runs/README.txt
+library/*
+!library/README.txt
+library-archive/
+# macOS / local runtime
 .DS_Store
-/db
+.share-caffeinate.pid
+# old material kept on this machine only (large data, legacy workflows, backups)
+archive/
+# new web app (web/): dependencies and build output
+web/node_modules/
+web/.next/
+web/.env*
+!web/.env.example

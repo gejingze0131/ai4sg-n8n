@@ -4,202 +4,355 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI4SG Audit</title>
-<!-- Served by n8n (workflow "AI4SG · A Overview", webhook /webhook/ai4sg-audit).
+<!-- Served by n8n (workflow "AI4SG · D Audit Page", webhook /webhook/ai4sg-audit).
      The workflow replaces the DATA placeholder below with the extraction results.
+     ?format=geo returns the map boundaries (geo.json, Natural Earth); Pass / Fail post to /webhook/ai4sg-review.
      Edit this file freely: changes show on the next page reload, no re-import needed. -->
 <style>
 :root{
   color-scheme:light;
-  --bg:#f6f6f4; --surface:#fcfcfb; --surface-2:#f0efec; --border:#e4e3df; --grid:#ecebe7;
-  --text:#0b0b0b; --text-2:#52514e; --muted:#7a7974;
-  --accent:#2a78d6; --accent-soft:#e3eefb;
-  --good:#1a7f37; --good-soft:#e6f4ea; --warn:#9a6700; --warn-soft:#fff4d6; --bad:#c62828; --bad-soft:#fdecec;
-  --bar:#2a78d6;
-}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  color-scheme:dark;
-  --bg:#121211; --surface:#1a1a19; --surface-2:#242422; --border:#2e2e2b; --grid:#262624;
-  --text:#fff; --text-2:#c3c2b7; --muted:#8f8e86;
-  --accent:#3987e5; --accent-soft:#1c2b3f;
-  --good:#4ac26b; --good-soft:#15291b; --warn:#d8a02c; --warn-soft:#2e2511; --bad:#ef6b6b; --bad-soft:#331819;
-  --bar:#3987e5;
-}}
-:root[data-theme="dark"]{
-  color-scheme:dark;
-  --bg:#121211; --surface:#1a1a19; --surface-2:#242422; --border:#2e2e2b; --grid:#262624;
-  --text:#fff; --text-2:#c3c2b7; --muted:#8f8e86;
-  --accent:#3987e5; --accent-soft:#1c2b3f;
-  --good:#4ac26b; --good-soft:#15291b; --warn:#d8a02c; --warn-soft:#2e2511; --bad:#ef6b6b; --bad-soft:#331819;
-  --bar:#3987e5;
+  --bg:#f6f6f4; --surface:#ffffff; --surface-2:#f0efec; --border:#e0dfdb; --grid:#ecebe7;
+  --text:#0b0b0b; --text-2:#4a4946; --muted:#72716c;
+  --accent:#2a78d6; --accent-soft:#e3eefb; --accent-line:#8fb6e8;
+  --good:#1a7f37; --good-soft:#e6f4ea; --warn:#8a5d00; --warn-soft:#fff4d6; --bad:#c62828; --bad-soft:#fdecec;
+  --land:#e9e8e4; --land-line:#ffffff;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);
-  font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans","Noto Sans Bengali","Bangla Sangam MN","Kohinoor Bangla","Noto Sans Devanagari","Noto Sans Thai",Thonburi,"PingFang SC",sans-serif}
+  font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans","Noto Sans Bengali","Bangla Sangam MN","Kohinoor Bangla","Noto Sans Devanagari","Noto Sans Thai",Thonburi,"PingFang SC",sans-serif}
 .orig{font-family:"Noto Sans Bengali","Bangla Sangam MN","Kohinoor Bangla","Noto Sans Devanagari","Kohinoor Devanagari","Noto Sans Thai",Thonburi,-apple-system,sans-serif}
 a{color:var(--accent)}
-.wrap{max-width:1400px;margin:0 auto;padding:20px 16px 48px}
-header.top{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between;margin-bottom:16px}
-h1{font-size:20px;margin:0}
-.sub{color:var(--text-2);font-size:13px}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:10px}
+.wrap{max-width:1480px;margin:0 auto;padding:24px 16px 56px}
+header.top{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:flex-end;justify-content:space-between;margin-bottom:18px}
+h1{font-size:26px;margin:0 0 2px}
+.sub{color:var(--text-2);font-size:15px}
+.who{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--text-2)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px}
 /* summary */
-.summary{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:12px}
-.kpi{padding:12px 14px}.kpi .l{color:var(--text-2);font-size:12px}.kpi .v{font-size:24px;font-weight:650}.kpi .d{color:var(--muted);font-size:12px}
-.charts{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));margin-bottom:16px}
-.chart{padding:12px 14px}.chart h3{margin:0 0 8px;font-size:12px;font-weight:600;color:var(--text-2)}
-.bar{display:grid;grid-template-columns:minmax(80px,40%) 1fr 28px;gap:8px;align-items:center;font-size:12px;margin:3px 0;cursor:pointer;border-radius:4px}
+.summary{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-bottom:12px}
+.kpi{padding:14px 16px}.kpi .l{color:var(--text-2);font-size:14px}.kpi .v{font-size:30px;font-weight:650;font-variant-numeric:tabular-nums}.kpi .d{color:var(--muted);font-size:13px}
+.charts{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));margin-bottom:18px}
+.chart{padding:14px 16px}.chart h3{margin:0 0 10px;font-size:14px;font-weight:600;color:var(--text-2)}
+.bar{display:grid;grid-template-columns:minmax(0,58%) 1fr 30px;gap:8px;align-items:center;font-size:14px;margin:2px 0;padding:2px 4px;cursor:pointer;border-radius:6px}
 .bar:hover{background:var(--surface-2)}
 .bar .k{color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bar .t{height:10px}.bar .f{height:100%;background:var(--bar);border-radius:0 3px 3px 0;min-width:2px}
+.bar .t{height:12px}.bar .f{height:100%;background:var(--accent);border-radius:0 4px 4px 0;min-width:2px}
 .bar .n{text-align:right;font-variant-numeric:tabular-nums}
 /* filters */
-.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
-input,select,button{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px}
-input[type=search]{flex:1;min-width:200px}
-button{cursor:pointer}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+input,select,button,textarea{font:inherit;font-size:15px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 11px}
+input[type=search]{flex:1;min-width:220px}
+button{cursor:pointer}button:hover{background:var(--surface-2)}
 /* layout */
-.main{display:grid;gap:16px;grid-template-columns:minmax(300px,420px) 1fr;align-items:start}
-@media (max-width:900px){.main{grid-template-columns:1fr}.detail{position:static!important;max-height:none!important}}
-.list{display:flex;flex-direction:column;gap:8px}
-.item{padding:12px 14px;cursor:pointer;border-left:3px solid transparent}
+.main{display:grid;gap:18px;grid-template-columns:minmax(320px,440px) 1fr;align-items:start}
+@media (max-width:980px){.main{grid-template-columns:1fr}.detail{position:static!important;max-height:none!important}}
+.list{display:flex;flex-direction:column;gap:10px}
+.item{padding:14px 16px;cursor:pointer;border-left:4px solid transparent}
 .item:hover{border-color:var(--border)}
 .item.sel{border-left-color:var(--accent);background:var(--accent-soft)}
-.item h4{margin:0 0 4px;font-size:14px;line-height:1.35}
-.item .t2{color:var(--text-2);font-size:13px;margin-bottom:6px}
-.chips{display:flex;flex-wrap:wrap;gap:4px}
-.chip{display:inline-flex;align-items:center;gap:4px;background:var(--surface-2);border-radius:10px;padding:1px 8px;font-size:12px;color:var(--text-2);white-space:nowrap}
-.flag{background:var(--warn-soft);color:var(--warn)}.flag.bad{background:var(--bad-soft);color:var(--bad)}.okc{background:var(--good-soft);color:var(--good)}
-.meter{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2)}
-.meter .m{width:60px;height:6px;background:var(--grid);border-radius:3px;overflow:hidden}.meter .m i{display:block;height:100%;background:var(--bar)}
-.detail{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;padding:18px 20px}
-.detail h2{font-size:19px;margin:0 0 6px;line-height:1.35}
-.titles{margin:6px 0 10px;padding:10px 12px;background:var(--surface-2);border-radius:8px}
-.titles .o{font-size:15px}.titles .e{color:var(--text-2);font-size:13px;margin-top:2px}
-.sec{margin-top:18px}.sec>h3{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0 0 8px}
-.facts{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
-.fact{border:1px solid var(--border);border-radius:8px;padding:10px 12px}
-.fact .h{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:4px}
-.fact .h b{font-size:13px}
-.big{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums}
-.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:13px}.kv dt{color:var(--muted)}.kv dd{margin:0}
+.item h4{margin:0 0 4px;font-size:16px;line-height:1.4}
+.item .t2{color:var(--text-2);font-size:15px;margin-bottom:8px}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip.dom{font-weight:600;border:1px solid transparent}
+.chip.dom.d-healthcare{background:#e6f4ea;color:#1a6b34;border-color:#bfe3c9}
+.chip.dom.d-public_service{background:#efe8fb;color:#5b3a9e;border-color:#d8c8f3}
+.chip.dom.d-agriculture{background:#fff4d6;color:#7a5200;border-color:#f0dc9f}
+.chip.dom.d-education{background:#e3eefb;color:#1d5aa6;border-color:#bcd5f2}
+.chip.dom.d-general{background:var(--surface-2);color:var(--text-2);border-color:var(--border)}
+.dombar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 14px}
+.dombar .l{color:var(--text-2);font-size:15px;margin-right:4px}
+.dombar button{border:1px solid var(--border);background:var(--surface);border-radius:18px;padding:5px 14px;font:inherit;font-size:15px;cursor:pointer;color:var(--text)}
+.dombar button .n{color:var(--muted);margin-left:6px;font-variant-numeric:tabular-nums}
+.dombar button.on{background:var(--text);color:#fff;border-color:var(--text)}
+.dombar button.on .n{color:#ddd}
+.chip{display:inline-flex;align-items:center;gap:4px;background:var(--surface-2);border-radius:12px;padding:2px 10px;font-size:13px;color:var(--text-2);white-space:nowrap}
+.flag{background:var(--warn-soft);color:var(--warn)}.flag.bad{background:var(--bad-soft);color:var(--bad)}
+.pass{background:var(--good-soft);color:var(--good);font-weight:600}.fail{background:var(--bad-soft);color:var(--bad);font-weight:600}
+.meter{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-2)}
+.meter .m{width:90px;height:8px;background:var(--grid);border-radius:4px;overflow:hidden}.meter .m i{display:block;height:100%;background:var(--accent)}
+.detail{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;padding:0}
+.detail .body{padding:22px 24px 8px}
+.detail h2{font-size:23px;margin:0 0 8px;line-height:1.35}
+.titles{margin:10px 0 12px;padding:12px 14px;background:var(--surface-2);border-radius:10px}
+.titles .o{font-size:17px}.titles .e{color:var(--text-2);font-size:15px;margin-top:3px}
+.sec{margin-top:24px}.sec>h3{font-size:14px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 10px}
+.facts{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.fact{border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.fact .h{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:6px}
+.fact .h b{font-size:15px}
+.big{font-size:26px;font-weight:650;font-variant-numeric:tabular-nums;line-height:1.25}
+.mid{font-size:18px;font-weight:600;line-height:1.35}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:15px;margin:6px 0 0}.kv dt{color:var(--muted)}.kv dd{margin:0}
 .na{color:var(--muted);font-style:italic}
-.ver{font-size:11px;padding:1px 7px;border-radius:9px;white-space:nowrap}
+.ver{font-size:12px;padding:2px 8px;border-radius:10px;white-space:nowrap}
 .ver.ok{background:var(--good-soft);color:var(--good)}.ver.no{background:var(--bad-soft);color:var(--bad)}.ver.none{background:var(--surface-2);color:var(--muted)}
-.quotes{margin-top:8px;display:flex;flex-direction:column;gap:6px}
-.q{display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;border-top:1px dashed var(--border);padding-top:6px}
-@media (max-width:600px){.q{grid-template-columns:1fr}}
-.q .lab{font-size:11px;color:var(--muted);display:block}
-.q .orig{font-size:14px}
-details>summary{cursor:pointer;color:var(--accent);font-size:12px;margin-top:6px}
-.ladder{display:flex;gap:3px;margin:6px 0}.ladder span{flex:1;height:8px;border-radius:2px;background:var(--grid)}.ladder span.on{background:var(--bar)}
-.ladder-l{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
-.interp p{margin:4px 0}.interp .lbl{font-weight:600}
-ul.gaps{margin:4px 0;padding-left:18px}
-table.qt{width:100%;border-collapse:collapse;font-size:13px}table.qt td,table.qt th{border-bottom:1px solid var(--grid);padding:6px;vertical-align:top;text-align:left}
-table.qt th{color:var(--muted);font-weight:600;font-size:12px}
-.banner{padding:10px 12px;border-radius:8px;margin:10px 0;font-size:13px}
-.banner.warn{background:var(--warn-soft);color:var(--warn)}.banner.bad{background:var(--bad-soft);color:var(--bad)}
-pre{white-space:pre-wrap;font-size:12px;background:var(--surface-2);padding:10px;border-radius:6px;max-height:320px;overflow:auto}
-.empty{padding:40px;text-align:center;color:var(--muted)}
+.quotes{margin-top:8px;display:flex;flex-direction:column;gap:8px}
+.q{display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:15px;border-top:1px dashed var(--border);padding-top:8px}
+@media (max-width:640px){.q{grid-template-columns:1fr}}
+.q .lab{font-size:12px;color:var(--muted);display:block}
+details>summary{cursor:pointer;color:var(--accent);font-size:14px;margin-top:8px}
+.ladder{display:flex;gap:3px;margin:8px 0}.ladder span{flex:1;height:10px;border-radius:2px;background:var(--grid)}.ladder span.on{background:var(--accent)}
+.ladder-l{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.interp p{margin:6px 0}.interp .lbl{font-weight:600}
+ul.gaps{margin:4px 0;padding-left:20px}
+table.qt{width:100%;border-collapse:collapse;font-size:15px}table.qt td,table.qt th{border-bottom:1px solid var(--grid);padding:7px 8px;vertical-align:top;text-align:left}
+table.qt th{color:var(--muted);font-weight:600;font-size:13px}
+td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cbar{height:10px;background:var(--accent);border-radius:0 4px 4px 0;min-width:2px}
+.banner{padding:11px 14px;border-radius:10px;margin:12px 0;font-size:15px}
+.banner.warn{background:var(--warn-soft);color:var(--warn)}.banner.bad{background:var(--bad-soft);color:var(--bad)}.banner.good{background:var(--good-soft);color:var(--good)}
+pre{white-space:pre-wrap;font-size:13px;background:var(--surface-2);padding:10px;border-radius:8px;max-height:340px;overflow:auto}
+.empty{padding:48px;text-align:center;color:var(--muted)}
+/* relevance score */
+.score{display:grid;grid-template-columns:auto 1fr;gap:6px 20px;align-items:start}
+.score .n{font-size:40px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}.score .n small{font-size:18px;color:var(--muted);font-weight:500}
+.crit{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.crit li{display:grid;grid-template-columns:24px 1fr auto;gap:6px;font-size:15px;align-items:baseline}
+.crit .y{color:var(--good);font-weight:700}.crit .x{color:var(--muted)}
+.note{font-size:13px;color:var(--muted);margin-top:6px}
+/* map */
+.mapwrap{display:grid;grid-template-columns:minmax(220px,360px) 1fr;gap:16px;align-items:start}
+@media (max-width:760px){.mapwrap{grid-template-columns:1fr}}
+svg.map{width:100%;height:auto;background:#f7f9fc;border:1px solid var(--grid);border-radius:10px}
+svg.map .rg{fill:var(--land);stroke:var(--land-line);stroke-width:.8}
+svg.map .rg.on{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.2}
+svg.map .ct{fill:none;stroke:#b9b8b3;stroke-width:1}
+svg.map .ct.on{fill:var(--accent-soft);fill-opacity:.9}
+svg.map .pt{fill:var(--accent);stroke:#fff;stroke-width:2}
+svg.map text{font-size:12px;fill:var(--text);paint-order:stroke;stroke:#fff;stroke-width:3px}
+/* review bar */
+.review{position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);padding:12px 24px 14px;border-radius:0 0 12px 12px;box-shadow:0 -4px 12px rgba(0,0,0,.04)}
+.review .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.review textarea{flex:1;min-width:220px;min-height:40px;height:40px;resize:vertical}
+.btn-pass{background:var(--good);color:#fff;border-color:var(--good);font-weight:600}.btn-pass:hover{background:#156a2e}
+.btn-fail{background:var(--bad);color:#fff;border-color:var(--bad);font-weight:600}.btn-fail:hover{background:#a82020}
+.review .st{font-size:14px;color:var(--text-2);margin-bottom:8px}
+a.stag{display:inline-block;font-size:12px;font-weight:600;padding:0 6px;border-radius:8px;background:var(--accent-soft);color:var(--accent);text-decoration:none;margin-left:3px;white-space:nowrap}
+a.stag:hover{text-decoration:underline}
+.back{display:inline-block;margin-bottom:10px;font-size:14px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}.tabs button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+#pending table.qt td{vertical-align:top}#pending .why{color:var(--text-2);font-size:14px}
+.btn-go{background:var(--accent);color:#fff;border-color:var(--accent)}.btn-go:hover{background:var(--accent);opacity:.9}.btn-go:disabled{opacity:.45;cursor:default}
+.item .kind{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:2px}
+ul.tagged{margin:4px 0 0;padding-left:18px}ul.tagged li{margin:3px 0}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
     <div><h1>AI for Social Good · Audit</h1><div class="sub" id="meta"></div></div>
-    <div class="sub">Every AI result with its source quotes in the original language and in English. · <a href="/form/ai4sg-run">Start a new run</a></div>
+    <div>
+      <div class="who"><label for="me">Your name (saved with your decisions)</label><input id="me" placeholder="e.g. Anna" style="width:180px"></div>
+      <div class="sub" style="text-align:right;margin-top:6px"><a href="/form/ai4sg-run">Start a new run</a></div>
+    </div>
   </header>
 
+  <nav class="dombar" id="dombar" aria-label="Domain"></nav>
   <section class="summary" id="kpis"></section>
+  <section id="runs" style="margin-bottom:16px"></section>
   <section class="charts">
     <div class="card chart"><h3>By country · click to filter</h3><div id="c-country"></div></div>
-    <div class="card chart"><h3>Strength of evidence for benefits</h3><div id="c-evidence"></div></div>
+    <div class="card chart"><h3>AI technology · click to filter</h3><div id="c-tech"></div></div>
+    <div class="card chart"><h3>Relevance score · best source</h3><div id="c-score"></div></div>
     <div class="card chart"><h3>Deployment stage</h3><div id="c-stage"></div></div>
+    <div class="card chart"><h3>Strength of evidence for benefits</h3><div id="c-evidence"></div></div>
   </section>
 
   <div class="filters">
-    <input type="search" id="q" placeholder="Search headline, project, organisation…">
+    <input type="search" id="q" placeholder="Search project or P-code, organisation, place, source title…">
     <select id="f-country"><option value="">All countries</option></select>
-    <select id="f-domain"><option value="">All domains</option></select>
+    <select id="f-tech"><option value="">All technologies</option></select>
     <select id="f-status">
-      <option value="">To review</option>
-      <option value="attention">Needs attention (flags or low confidence)</option>
-      <option value="clean">No flags</option>
-      <option value="filtered">Filtered out by AI (spot-check)</option>
+      <option value="">Awaiting review</option>
+      <option value="all">All projects</option>
+      <option value="approved">Passed</option>
+      <option value="rejected">Failed</option>
+      <option value="attention">Needs attention (warning flags)</option>
     </select>
-    <select id="f-sort"><option value="new">Newest first</option><option value="conf">Lowest confidence first</option></select>
+    <select id="f-sort"><option value="new">Newest first</option><option value="old">Oldest first</option><option value="hi">Highest relevance score</option><option value="lo">Lowest relevance score</option><option value="domain">Domain, then newest</option><option value="country">Country, then newest</option><option value="name">Name A–Z</option></select>
     <button id="reset">Reset</button>
   </div>
 
   <div class="main">
-    <div><div class="sub" id="count" style="margin-bottom:6px"></div><div class="list" id="list"></div></div>
-    <div class="card detail" id="detail"><div class="empty">Select a result on the left.</div></div>
+    <div><div class="sub" id="count" style="margin-bottom:8px"></div><div class="list" id="list"></div></div>
+    <div class="card detail" id="detail"><div class="empty">Select a project on the left.</div></div>
   </div>
+
+  <section class="card" id="pending" style="margin-top:24px;padding:16px 20px"></section>
 </div>
 
 <script>
 const DATA = /*__DATA__*/[];
+const RUNS = /*__RUNS__*/[];
+const RUNS_ALL = RUNS;
+const PROJECTS = /*__PROJECTS__*/[];
 
 // ---------- vocabularies ----------
-const LANG = {bn:'Bengali',hi:'Hindi',id:'Indonesian',th:'Thai',ta:'Tamil',ur:'Urdu',ne:'Nepali',en:'English',ms:'Malay',vi:'Vietnamese'};
+const LANG = {bn:'Bengali',hi:'Hindi',id:'Indonesian',th:'Thai',ta:'Tamil',ur:'Urdu',ne:'Nepali',en:'English',ms:'Malay',vi:'Vietnamese',si:'Sinhala',tl:'Filipino',km:'Khmer',sw:'Swahili',am:'Amharic'};
 const DOMAIN = {health:'Health',agriculture_food:'Agriculture & food',education:'Education',financial_inclusion:'Financial inclusion',
   social_protection:'Social protection',water_sanitation:'Water & sanitation',climate_disaster:'Climate & disaster',gender:'Gender',
   public_services:'Public services',accessibility:'Accessibility',humanitarian:'Humanitarian',other:'Other'};
+const RUNDOM = {healthcare:'Healthcare',public_service:'Public service',agriculture:'Agriculture',education:'Education',general:'All-domain runs'};
+// domain tags: the domains a source belongs to (set by the screen; a source can sit in several, e.g. a TB-screening paper found by a
+// public-service run is tagged Healthcare), else the domain of the run that found it. A project has the tags of its sources.
+// The domain bar at the top limits the whole page (list, figures, Not analysed yet) to the items with that tag.
+const tagsOf = (x) => (x && x.tags && x.tags.length ? x.tags : [(x && x.runDomain) || 'general']);
+const domOf = (x) => tagsOf(x)[0];
+let DOM = '';
+const inD = (x) => !DOM || tagsOf(x).includes(DOM);
+const domChip = (x) => tagsOf(x).map(d => `<span class="chip dom d-${esc(d)}" title="Domain tag${x.runDomain && x.runDomain !== d ? ` (found by a ${esc(RUNDOM[x.runDomain] || x.runDomain)} run)` : ''}">${esc(RUNDOM[d] || d)}</span>`).join('');
+const AIROLE = {information_only:'Information only (no decision)',assistive:'Assistive: a person decides',triage_prioritisation:'Triage / prioritisation',
+  autonomous_decision:'Autonomous: AI output is the decision',unknown:'Not stated'};
+const GOVROLE = {none:'None',partner:'Partner',funder:'Funder',implementer:'Implementer',adopted:'Adopted / procured',regulator:'Regulator',unknown:'Not stated'};
+const DSRC = {system_logs:'System logs',programme_records:'Programme records',independent_measurement:'Independent measurement',survey_self_report:'Survey / self-report',
+  developer_or_government_claim:'Claim by developer or government',modelled:'Modelled',not_stated:'Not stated'};
+const DBNAME = {openalex:'OpenAlex',europepmc:'Europe PMC',eric:'ERIC',worldbank:'World Bank',aearct:'AEA RCT Registry',web:'Web search'};
+const RELNAME = {cites:'cited by',cited_by:'citing',mentioned_in:'named in'};
 const STAGE = {idea:'Idea / announced',pilot:'Pilot',scaled:'Scaled',discontinued:'Discontinued',unknown:'Unknown'};
+const TECH = {computer_vision:'Computer vision',speech_nlp:'Speech & language',llm_chatbot:'LLM / chatbot',predictive_ml:'Predictive ML',
+  remote_sensing:'Remote sensing',recommender_decision_support:'Decision support',robotics:'Robotics',other:'Other',unspecified:'Not specified'};
+const TSTATUS = {planned:'Planned',ongoing:'Ongoing',completed:'Completed',discontinued:'Discontinued',unknown:'Unknown'};
+const COSTCAT = {hardware_equipment:'Hardware & equipment',software_development:'Software development',data:'Data',staff_training:'Staff & training',
+  operations_maintenance:'Operations & maintenance',research_evaluation:'Research & evaluation',total_budget:'Total budget',other:'Other'};
 const EVID = [['rct','RCT'],['quasi_experimental','Quasi-experimental'],['observational','Observational'],['pilot_report','Pilot report'],['anecdotal','Anecdotal'],['none','None']];
 const SRC = {news:'News',gov_report:'Government report',gov_website:'Government website',journal:'Journal',conference_report:'Conference',open_source:'Open source',ngo_report:'NGO report',other:'Other'};
 const FLAGS = {
   quote_not_found:['Quote not found in source','bad'], cost_without_evidence:['Cost figure not backed by a quote','bad'],
   benefit_without_evidence:['Benefit claim not backed by a quote','bad'], no_text_extracted:['Source text could not be read','warn'],
-  extraction_failed:['AI extraction failed','bad']};
+  extraction_failed:['AI extraction failed','bad'], outcome_without_evidence:['Outcome not backed by a found quote','bad'],
+  abstract_only:['Only the abstract could be read','warn']};
+const CRITERIA_HELP = 'Five criteria, 20 points each. A criterion counts only when its fields are filled and at least one of its quotes is found word for word in the source.';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const $ = (id) => document.getElementById(id);
 const nfmt = (n) => (typeof n === 'number' && isFinite(n)) ? n.toLocaleString('en-US') : '';
 const langName = (c) => LANG[c] || (c ? c.toUpperCase() : '—');
+const store = { get(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } },
+                set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
 
-// ---------- normalise rows (tolerates the older flat structure) ----------
+// ---------- normalise rows (older results lack the newer blocks) ----------
 const rows = DATA.map((r) => {
   const f = r.fields || {};
   const p = f.project || {};
   const src = f.source || {};
-  const ev = Array.isArray(f.evidence) ? f.evidence : [];
-  return {
-    id: r.id, url: r.url, created: r.created_at, status: r.status, country: (p.countries && p.countries[0]) || r.country || '',
-    lang: src.language || r.language || '', sourceType: r.source_type, flags: r.flags || [], conf: r.confidence,
-    failed: !r.fields, raw: r.fields,
-    isAi: f.is_ai4sg !== false,
-    headline: f.headline || p.name || f.project_name || r.title_en || r.title || r.url,
+  const tech = f.technology || (p.ai_technique ? { specific: p.ai_technique, category: '' } : {});
+  const loc = f.location || (p.location ? { places: [], as_text: p.location } : {});
+  const row = {
+    id: 's' + r.source_id, sid: r.source_id, eid: r.id || null, analysed: r.id != null,
+    url: r.url, created: r.created_at, status: r.status, engine: r.search_engine || '',
+    runId: r.run_id || '', textLevel: r.text_level || '',
+    database: r.database || '', doi: r.doi || '', files: Array.isArray(r.files) ? r.files : [], textChars: r.text_chars,
+    via: r.via_id ? { id: 's' + r.via_id, title: r.via_title || r.via_url, rel: r.relation } : null,
+    projectCode: r.project_code || '', projectName: r.project_name || '', projectMethod: r.project_method || '', projectReason: r.project_reason || '',
+    projectGuess: r.project_guess || '', toolCode: r.tool_code || '', toolName: r.tool_name || '',
+    duplicateOf: r.duplicate_of ? String(r.duplicate_of) : '',
+    country: (p.countries && p.countries[0]) || r.country || '',
+    lang: src.language || r.language || '', sourceType: r.source_type, flags: r.flags || [],
+    score: r.relevance_score, relevance: f.relevance || null, screenRel: r.screen_relevance,
+    failed: r.id != null && !r.fields, raw: r.fields || r.source_screen || null, isAi: f.is_ai4sg !== false,
+    headline: f.headline || p.name || (r.source_screen && r.source_screen.headline_en) || r.title_en || r.title || r.url,
     titleOrig: src.title_original || r.title || '', titleEn: src.title_en || r.title_en || '',
     publisher: src.publisher || '', published: src.published || '', summary: src.summary_en || r.why_relevant || '',
-    project: p.name ? p : { name: f.project_name, implementing_org: f.implementing_org, countries: f.countries,
-      ai_technique: f.ai_technique, deployment_stage: f.deployment_stage, target_beneficiaries: f.target_beneficiaries, domain: f.domain },
-    reach: f.reach || {}, cost: f.cost || {}, benefit: f.benefit || {},
-    evid: f.evidence_strength || { type: f.evidence_type }, interp: typeof f.interpretation === 'object' ? f.interpretation : { overall: f.interpretation },
-    risks: Array.isArray(f.risks_limitations) ? f.risks_limitations : (f.risks_limitations ? [f.risks_limitations] : []),
-    evidence: ev,
+    project: p, tech, timeline: f.timeline || {}, loc, reach: f.reach || {}, cost: f.cost || {}, benefit: f.benefit || {},
+    evid: f.evidence_strength || {}, interp: typeof f.interpretation === 'object' && f.interpretation ? f.interpretation : { overall: f.interpretation },
+    risks: Array.isArray(f.risks_limitations) ? f.risks_limitations : [],
+    use: f.use || {}, impl: f.implementation || {}, outcomes: Array.isArray(f.outcomes) ? f.outcomes : [],
+      dfields: Array.isArray(f.domain_fields) ? f.domain_fields : [],
+    evidence: Array.isArray(f.evidence) ? f.evidence : [],
+    decision: r.review_decision || '', rcomment: r.review_comment || '', reviewer: r.reviewer || '', reviewedAt: r.reviewed_at || '',
   };
+  row.domain = p.domain || ''; row.runDomain = r.run_domain || f.run_domain || '';
+  row.tags = (Array.isArray(r.domain_tags) ? r.domain_tags : []).filter(Boolean); row.stage = p.deployment_stage || 'unknown'; row.techCat = tech.category || 'unspecified';
+  row.filtered = r.status === 'filtered_out' || (row.analysed && !row.failed && !row.isAi);
+  row.queued = r.status === 'queued';
+  row.duplicate = r.status === 'duplicate';   // the same document as another source (the organiser of stage ②): not analysed
+  row.notDownloaded = !row.analysed && !row.filtered && !row.queued && !row.duplicate;   // download failed (or the run stopped before the screen)
+  row.screen = (f && f.screen) || r.source_screen || null;
+  row.pick = r.pick || null;   // the analysis selection's decision for this source: {selected, rank, reason, method}
+  if (row.screen && !row.summary) row.summary = row.screen.reason ? `Screen: ${row.screen.reason}` : '';
+  row.attention = row.analysed && !row.filtered && row.flags.length > 0;
+  return row;
 });
-rows.forEach(r => { r.domain = r.project.domain || ''; r.stage = r.project.deployment_stage || 'unknown';
-  r.filtered = r.status === 'filtered_out' || (!r.failed && !r.isAi);
-  r.screen = (r.raw && r.raw.screen) || null;
-  if (r.screen && !r.summary) r.summary = r.screen.reason ? `Screen: ${r.screen.reason}` : '';
-  r.attention = !r.filtered && (r.flags.length > 0 || (r.conf ?? 0) < 0.5); });
-const review = rows.filter(r => !r.filtered);   // what the experts are asked to audit
+const projectSize = (code) => code ? rows.filter(x => x.projectCode === code).length : 0;
+const bySid = Object.fromEntries(rows.map(r => [String(r.sid), r]));
+
+// ---------- projects: what the experts audit (one record per project, merged from all its sources by C3) ----------
+const EVORDER = ['none', 'anecdotal', 'pilot_report', 'observational', 'quasi_experimental', 'rct'];
+const projects = PROJECTS.map(p => {
+  const sy = p.synthesis || {}, llm = sy.llm || {};
+  const sids = (p.source_ids || []).map(Number);
+  const srcRows = sids.map(id => bySid[String(id)]).filter(Boolean);
+  const reviewed = Array.isArray(p.reviewed_sources) ? p.reviewed_sources.map(Number) : null;
+  const P = {
+    id: 'p' + p.id, pid: Number(p.id), code: p.code, kind: 'project', name: llm.name || p.name, dbName: p.name, aliases: p.aliases || [],
+    sy, llm, sids, srcRows, created: p.updated_at || p.created_at,
+    countries: sy.countries && sy.countries.length ? sy.countries : (p.countries || []),
+    techCat: (sy.tech_categories || [])[0] || 'unspecified', stage: sy.stage || 'unknown', evid: (sy.evidence_best || {}).type || 'none',
+    score: sy.score_best == null ? null : sy.score_best, outcomes: sy.outcomes || [],
+    flags: Object.keys(sy.flags || {}), runDomain: (srcRows.find(r => r.runDomain) || {}).runDomain || '',
+    tags: [...new Set(srcRows.flatMap(r => tagsOf(r)))],
+    toolCode: p.tool_code || '', toolName: p.tool_name || '', toolDev: p.tool_developer || '', deployment: p.deployment || {},
+    oldDecision: p.review_decision || '', oldReviewer: p.reviewer || '', oldReviewedAt: p.reviewed_at || '', oldComment: p.review_comment || '',
+    changed: false, pending: !p.synthesis,
+  };
+  reviewState(P);
+  P.country = P.countries[0] || '';
+  P.single = sids.length === 1;   // a project with one source is shown as that source's page (no project wrapper)
+  P.analysed = srcRows.some(r => r.analysed && !r.filtered && !r.failed);
+  P.attention = P.flags.some(f => (FLAGS[f] || [])[1] === 'bad');
+  return P;
+}).filter(P => P.sids.length);
+// experts review SOURCES; a project shows how far its analysed sources are reviewed: decision '' while any is waiting,
+// 'rejected' when one failed, 'approved' when all passed
+function reviewState(P) {
+  P.live = P.srcRows.filter(r => r.analysed && !r.filtered && !r.failed && r.eid);
+  P.waiting = P.live.filter(r => !r.decision).length;
+  P.decision = P.live.length && !P.waiting ? (P.live.some(r => r.decision === 'rejected') ? 'rejected' : 'approved') : '';
+  return P;
+}
+const projectOf = Object.fromEntries(projects.flatMap(P => P.sids.map(id => [String(id), P])));
+// analysed sources that belong to no project (failed extractions, results from before projects existed) stay reviewable one by one
+const loose = rows.filter(r => r.analysed && !r.filtered && !projectOf[String(r.sid)]);
+const inScope = () => projects.filter(P => P.analysed && inD(P));
+const looseD = () => loose.filter(inD);
+const rowsD = () => rows.filter(inD);
+const stag = (sid) => `<a href="#" class="stag" data-goto="s${esc(sid)}" title="${esc((bySid[String(sid)] || {}).headline || 'source ' + sid)}">S${esc(sid)}</a>`;
+const stags = (list) => [...new Set((list || []).map(Number))].map(stag).join('');
 
 // ---------- summary ----------
 const count = (arr, key) => arr.reduce((m, x) => { const k = key(x) || '—'; m[k] = (m[k] || 0) + 1; return m; }, {});
 function kpis() {
-  const ai = review.filter(r => !r.failed);
+  const rows = rowsD(), rv = inScope(), analysedSrc = rows.filter(r => r.analysed && !r.filtered);
+  const multi = rv.filter(P => P.sids.length > 1).length;
   const tiles = [
-    ['To review', review.length, `${review.filter(r => r.failed).length} failed extractions`],
-    ['With a cost figure', ai.filter(r => r.cost.stated).length, 'quoted from the source'],
-    ['With a stated benefit', ai.filter(r => r.benefit.stated).length, 'outcome, not just outputs'],
-    ['Need attention', review.filter(r => r.attention).length, 'flags or confidence < 0.5'],
-    ['Filtered out by AI', rows.length - review.length, 'not AI4SG or low relevance · hidden'],
+    ['Sources awaiting review', analysedSrc.filter(r => !r.failed && !r.decision).length, `in ${rv.filter(P => P.waiting).length} of ${rv.length} projects`],
+    ['Passed', analysedSrc.filter(r => r.decision === 'approved').length, 'sources, by an expert'],
+    ['Failed', analysedSrc.filter(r => r.decision === 'rejected').length, 'sources, by an expert'],
+    ['With outcome data', rv.filter(P => P.outcomes.some(o => o.value !== null && o.value !== undefined && o.value !== '')).length, 'projects'],
+    ['Sources analysed', analysedSrc.length, `${multi} project${multi === 1 ? '' : 's'} with several sources`],
+    ['Queued', rows.filter(r => r.queued).length, 'sources screened, waiting for analysis'],
+    ['Filtered out by AI', rows.filter(r => r.filtered).length, `${rows.filter(r => r.notDownloaded).length} could not be downloaded`],
   ];
-  $('kpis').innerHTML = tiles.map(([l, v, d]) => `<div class="card kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${esc(d)}</div></div>`).join('');
-  $('meta').textContent = rows.length ? `${review.length} to review · ${rows.length - review.length} filtered out by the AI screen · latest ${new Date(rows[0].created).toLocaleString()}` : 'No results yet';
+  $('kpis').innerHTML = tiles.map(([l, v, d]) => `<div class="card kpi"${l === 'Queued' || l === 'Filtered out by AI' ? ` data-jump="${l === 'Queued' ? 'queued' : 'screened'}" style="cursor:pointer" title="Show them under Not analysed yet"` : ''}><div class="l">${l}</div><div class="v">${v}</div><div class="d">${esc(d)}</div></div>`).join('');
+  $('kpis').querySelectorAll('[data-jump]').forEach(t => t.onclick = () => { naTab = t.dataset.jump; pendingSection(); $('pending').scrollIntoView({ behavior: 'smooth' }); });
+  $('meta').textContent = rows.length ? `${rv.length} projects from ${analysedSrc.length} analysed sources · ${rows.length} sources in all: ${rows.filter(r => r.queued).length} queued, ${rows.filter(r => r.filtered).length} filtered out · latest ${new Date(rows[0].created).toLocaleString()}` : 'No results yet';
+  runsTable();
+}
+function runsTable() {
+  const RUNS = RUNS_ALL.filter(r => !DOM || (r.domain || 'general') === DOM);
+  if (!RUNS.length) { $('runs').innerHTML = ''; return; }
+  const c = (r, k) => (r.counts && r.counts[k] != null ? r.counts[k] : '—');
+  $('runs').innerHTML = `<details class="card" style="padding:12px 16px" ${RUNS[0] && !RUNS[0].finished_at ? 'open' : ''}><summary><b>Runs</b> · what each run found and analysed (latest: run ${RUNS[0].id}, ${esc(RUNDOM[RUNS[0].domain] || 'all domains')}: found ${c(RUNS[0], 'found')}, analysed ${c(RUNS[0], 'analysed')}, queued ${c(RUNS[0], 'queued')})</summary>
+    <div style="overflow-x:auto"><table class="qt" style="min-width:900px;margin-top:8px"><tr><th>Run</th><th>Started</th><th>Domain</th>
+      <th title="all candidates returned by the searches">Found</th><th title="after removing duplicates within the run">Unique</th><th title="not seen in earlier runs">New</th>
+      <th title="reached by following references, citing papers or named reports">Cascaded</th><th>Downloaded</th><th>Passed screen</th>
+      <th title="analysed in depth (of which from the queue of earlier runs)">Analysed</th><th title="screened, waiting for analysis in this domain after the run">Queued</th><th title="the same document as another source (found by the organiser): not analysed">Duplicates</th><th title="new deployments (projects), new tools">New projects</th></tr>
+    ${RUNS.map(r => `<tr><td>${r.id}</td><td>${esc(new Date(r.started_at).toLocaleString())}${r.finished_at ? '' : ' <span class="ver none">running or stopped</span>'}</td>
+      <td>${esc(RUNDOM[r.domain] || 'All domains')}</td><td class="num">${c(r, 'found')}</td><td class="num">${c(r, 'unique')}</td><td class="num">${c(r, 'new')}</td>
+      <td class="num">${c(r, 'cascaded')}</td><td class="num">${c(r, 'downloaded')}${r.counts && r.counts.full_text != null ? ` <span class="ver" title="full text / abstract only">${r.counts.full_text} full, ${r.counts.abstract_only || 0} abstract</span>` : ''}${r.counts && r.counts.download_failed ? ` <span class="ver no" title="could not be downloaded">${r.counts.download_failed} failed</span>` : ''}${r.counts && r.counts.retried ? ` <span class="ver" title="earlier sources downloaded again in this run">+${r.counts.retried_ok || 0}/${r.counts.retried} retried</span>` : ''}</td>
+      <td class="num">${c(r, 'passed_screen')}</td><td class="num">${c(r, 'analysed')}${r.counts && r.counts.analysed_from_queue ? ` (${r.counts.analysed_from_queue} from queue)` : ''}</td>
+      <td class="num">${c(r, 'queued')}</td><td class="num">${c(r, 'duplicates')}</td><td class="num">${c(r, 'new_projects')}${r.counts && r.counts.new_tools ? ` <span class="ver none">${r.counts.new_tools} tools</span>` : ''}</td></tr>`).join('')}</table></div>
+    <div class="note">Nothing is cut: every source found is kept. "Max sources to analyse" only limits the in-depth analysis; the rest wait as Queued and are analysed first in the next run of the same domain, sources about new projects before more sources about known ones.</div></details>`;
 }
 function bars(el, entries, label, onClick) {
   const max = Math.max(1, ...entries.map(e => e[1]));
@@ -209,72 +362,274 @@ function bars(el, entries, label, onClick) {
   if (onClick) el.querySelectorAll('.bar').forEach(b => b.onclick = () => onClick(b.dataset.k));
 }
 function charts() {
-  const ai = review.filter(r => !r.failed);
-  bars($('c-country'), Object.entries(count(review, r => r.country)).sort((a, b) => b[1] - a[1]), k => k,
-    k => { $('f-country').value = $('f-country').value === k ? '' : k; render(); });
-  const ec = count(ai, r => r.evid.type || 'none');
+  const ai = inScope();
+  const toggle = (id) => (k) => { $(id).value = $(id).value === k ? '' : k; render(); };
+  bars($('c-country'), Object.entries(count(ai, P => P.country)).sort((a, b) => b[1] - a[1]), k => k, toggle('f-country'));
+  bars($('c-tech'), Object.entries(count(ai, P => P.techCat)).sort((a, b) => b[1] - a[1]), k => TECH[k] || k, toggle('f-tech'));
+  const sc = count(ai.filter(P => P.score != null), P => String(P.score));
+  bars($('c-score'), ['100', '80', '60', '40', '20', '0'].map(k => [k, sc[k] || 0]), k => `${k} / 100`);
+  const st = count(ai, P => P.stage);
+  bars($('c-stage'), Object.keys(STAGE).map(k => [k, st[k] || 0]), k => STAGE[k] || k);
+  const ec = count(ai, P => P.evid || 'none');
   bars($('c-evidence'), EVID.map(([k]) => [k, ec[k] || 0]), k => (EVID.find(e => e[0] === k) || [k, k])[1]);
-  const sc = count(ai, r => r.stage);
-  bars($('c-stage'), Object.keys(STAGE).map(k => [k, sc[k] || 0]), k => STAGE[k] || k);
 }
 
-// ---------- evidence helpers ----------
-function refsStatus(r, block) {
+// ---------- quotes ----------
+function quotesFor(r, block, name) {
   const refs = (block && block.evidence_refs) || [];
-  const qs = r.evidence.filter(e => refs.includes(e.id) || (!refs.length && e.field && block && block._name && e.field.startsWith(block._name)));
-  if (!qs.length) return { html: '<span class="ver none">No quote</span>', qs };
-  const ok = qs.every(q => q.found !== false);
-  return { html: ok ? '<span class="ver ok">✓ Quote verified</span>' : '<span class="ver no">✗ Quote not found in source</span>', qs };
+  return r.evidence.filter(e => refs.includes(e.id) || (!refs.length && e.field === name));
+}
+function verBadge(qs) {
+  if (!qs.length) return '<span class="ver none">No quote</span>';
+  return qs.every(q => q.found !== false) ? '<span class="ver ok">✓ Quote verified</span>' : '<span class="ver no">✗ Quote not found in source</span>';
 }
 function quoteHtml(q, lang) {
+  const nf = q.found === false ? ' <span class="ver no">not found</span>' : '';
   if (!q.quote_en || q.quote_en.trim() === String(q.quote_original || '').trim())
-    return `<div class="q" style="grid-template-columns:1fr"><div><span class="lab">Quote · ${esc(langName(lang))}</span>${esc(q.quote_original)}${q.found === false ? ' <span class="ver no">not found</span>' : ''}</div></div>`;
+    return `<div class="q" style="grid-template-columns:1fr"><div><span class="lab">Quote · ${esc(langName(lang))}</span>${esc(q.quote_original)}${nf}</div></div>`;
   return `<div class="q"><div><span class="lab">Original · ${esc(langName(lang))}</span><span class="orig" lang="${esc(lang)}">${esc(q.quote_original)}</span></div>
-    <div><span class="lab">English</span>${esc(q.quote_en || '')}${q.found === false ? ' <span class="ver no">not found</span>' : ''}</div></div>`;
+    <div><span class="lab">English</span>${esc(q.quote_en || '')}${nf}</div></div>`;
 }
-function factCard(r, title, name, block, body) {
-  block = Object.assign({ _name: name }, block || {});
-  const st = refsStatus(r, block);
-  const quotes = st.qs.length ? `<details><summary>Show ${st.qs.length} quote${st.qs.length > 1 ? 's' : ''}</summary><div class="quotes">${st.qs.map(q => quoteHtml(q, r.lang)).join('')}</div></details>` : '';
-  return `<div class="fact"><div class="h"><b>${title}</b>${block.stated === false ? '<span class="ver none">Not stated</span>' : st.html}</div>${body}${quotes}</div>`;
+function factCard(r, title, name, block, body, wide) {
+  block = block || {};
+  const qs = quotesFor(r, block, name);
+  const quotes = qs.length ? `<details><summary>Show ${qs.length} quote${qs.length > 1 ? 's' : ''}</summary><div class="quotes">${qs.map(q => quoteHtml(q, r.lang)).join('')}</div></details>` : '';
+  return `<div class="fact"${wide ? ' style="grid-column:1/-1"' : ''}><div class="h"><b>${title}</b>${block.stated === false ? '<span class="ver none">Not stated</span>' : verBadge(qs)}</div>${body}${quotes}</div>`;
 }
 const kv = (pairs) => `<dl class="kv">${pairs.filter(([, v]) => v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && !v.length))
   .map(([k, v]) => `<dt>${k}</dt><dd>${esc(Array.isArray(v) ? v.join(', ') : v)}</dd>`).join('')}</dl>`;
 
+// ---------- relevance score ----------
+function scoreCard(r) {
+  if (r.score == null || !r.relevance) return `<div class="fact"><div class="h"><b>Relevance score</b></div><div class="na">Not scored: this result was produced before the score existed. Re-run the source to score it.</div></div>`;
+  const rel = r.relevance;
+  return `<div class="fact"><div class="h"><b>Relevance score</b><span class="ver none">Computed by rules, not by the AI</span></div>
+    <div class="score"><div class="n">${r.score}<small> / 100</small></div>
+      <ul class="crit">${(rel.criteria || []).map(c => `<li><span class="${c.met ? 'y' : 'x'}">${c.met ? '✓' : '✗'}</span><span>${esc(c.label)}</span><span class="${c.met ? '' : 'x'}">${c.points}</span></li>`).join('')}</ul></div>
+    <div class="note">${CRITERIA_HELP} Quotes found in the source: ${rel.quotes_found ?? '—'} of ${rel.quotes_total ?? '—'}.</div></div>`;
+}
+
+// ---------- cost ----------
+function costSection(r) {
+  const c = r.cost, rows_ = Array.isArray(c.breakdown) ? c.breakdown : [];
+  if (!c.stated && !rows_.length) return factCard(r, 'Cost', 'cost', c, '<div class="na">No cost figure in the source.</div>', true);
+  const cur = [...new Set(rows_.map(x => x.currency || c.currency).filter(Boolean))];
+  const max = Math.max(1, ...rows_.map(x => Number(x.amount) || 0));
+  const qById = Object.fromEntries(r.evidence.map(e => [e.id, e]));
+  const table = rows_.length ? `<table class="qt" style="margin-top:10px"><tr><th>Item</th><th>Category</th><th style="text-align:right">Amount</th>${cur.length === 1 ? '<th style="width:22%"></th>' : ''}<th>As written</th><th>Period</th><th>Quote</th></tr>
+    ${rows_.map(x => { const q = qById[x.evidence_ref]; return `<tr><td>${esc(x.item)}</td><td>${esc(COSTCAT[x.category] || x.category || '')}</td>
+      <td class="num">${esc(x.currency || c.currency || '')} ${nfmt(Number(x.amount))}</td>
+      ${cur.length === 1 ? `<td><div class="cbar" style="width:${100 * (Number(x.amount) || 0) / max}%" title="${esc(x.item)}: ${nfmt(Number(x.amount))}"></div></td>` : ''}
+      <td class="orig" lang="${esc(r.lang)}">${esc(x.amount_as_written || '')}</td><td>${esc(x.period || '')}</td>
+      <td>${q ? (q.found === false ? '<span class="ver no">✗</span>' : '<span class="ver ok">✓</span>') : '<span class="ver none">—</span>'}</td></tr>`; }).join('')}</table>
+    ${cur.length > 1 ? '<div class="note">Several currencies: amounts are shown as the source gives them, not converted.</div>' : ''}` : '<div class="note">The source gives no breakdown of this figure.</div>';
+  const total = c.amount != null && c.amount !== '' ? `<div class="big">${esc(c.currency || '')} ${nfmt(Number(c.amount))}</div>` : '';
+  return factCard(r, 'Cost', 'cost', c, `${total}${kv([['As written', c.amount_as_written], ['Covers', c.what_is_covered], ['Paid by', c.funding_source],
+    ['Per beneficiary', c.cost_per_beneficiary != null ? `${c.currency || ''} ${nfmt(Number(c.cost_per_beneficiary))}` : '']])}${table}`, true);
+}
+
+// ---------- map ----------
+let GEO = null, geoLoading = null;
+function loadGeo() {
+  if (GEO || geoLoading) return geoLoading || Promise.resolve(GEO);
+  geoLoading = fetch(location.pathname + '?format=geo').then(x => x.json()).then(g => (GEO = g)).catch(() => (GEO = { failed: true }));
+  return geoLoading;
+}
+const ALIAS = { chattogram: 'chittagong', barishal: 'barisal', jashore: 'jessore', bogura: 'bogra', cumilla: 'comilla', 'viet nam': 'vietnam' };
+const nm = (s) => { let t = String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  .replace(/\b(division|province|state|region|district)\b/g, '').replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim(); return ALIAS[t] || t; };
+function ringsOf(g) { return g.type === 'Polygon' ? g.coordinates : g.type === 'MultiPolygon' ? g.coordinates.flat() : []; }
+function mapSvg(r) {
+  if (!GEO || GEO.failed) return '<div class="na">Map not available.</div>';
+  const places = (r.loc.places || []).filter(p => p && (p.name || p.admin1));
+  const names = new Set([r.country, ...((r.project.countries) || []), ...places.map(p => p.country)].filter(Boolean).map(nm));
+  const countries = GEO.countries.features.filter(f => names.has(nm(f.properties.name)));
+  if (!countries.length) return '<div class="na">No map for this country yet.</div>';
+  const isos = new Set(countries.map(f => f.properties.iso));
+  const regions = GEO.regions.features.filter(f => isos.has(f.properties.iso));
+  const wanted = new Set(places.flatMap(p => [p.level === 'admin1' ? p.name : '', p.admin1]).filter(Boolean).map(nm));
+  const national = r.loc.scope === 'national' || places.some(p => p.level === 'country');
+  const regionOn = (f) => [f.properties.name, ...String(f.properties.alt || '').split('|')].some(n => n && wanted.has(nm(n)));
+  // bounds of the countries; equirectangular projection corrected for latitude
+  let x0 = 180, x1 = -180, y0 = 90, y1 = -90;
+  countries.forEach(f => ringsOf(f.geometry).forEach(ring => ring.forEach(([x, y]) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); })));
+  const k = Math.cos(((y0 + y1) / 2) * Math.PI / 180), W = 360, pad = 10;
+  const sx = (W - 2 * pad) / Math.max(0.01, (x1 - x0) * k), H = Math.round(Math.min(420, (y1 - y0) * sx + 2 * pad));
+  const s = Math.min(sx, (H - 2 * pad) / Math.max(0.01, y1 - y0));
+  const px = (x) => pad + (x - x0) * k * s, py = (y) => pad + (y1 - y) * s;
+  const path = (g) => ringsOf(g).map(ring => 'M' + ring.map(([x, y]) => `${px(x).toFixed(1)},${py(y).toFixed(1)}`).join('L') + 'Z').join('');
+  const inside = (p) => typeof p.lat === 'number' && typeof p.lon === 'number' && p.lon >= x0 - 0.3 && p.lon <= x1 + 0.3 && p.lat >= y0 - 0.3 && p.lat <= y1 + 0.3;
+  const pts = places.filter(p => ['admin2', 'city', 'site'].includes(p.level) && inside(p));
+  const svg = `<svg class="map" viewBox="0 0 ${W} ${H}" role="img" aria-label="Map of project locations">
+    ${regions.map(f => `<path class="rg ${regionOn(f) ? 'on' : ''}" d="${path(f.geometry)}"><title>${esc(f.properties.name)}${regionOn(f) ? ' · project area' : ''}</title></path>`).join('')}
+    ${countries.map(f => `<path class="ct ${national ? 'on' : ''}" d="${path(f.geometry)}"><title>${esc(f.properties.name)}${national ? ' · nationwide' : ''}</title></path>`).join('')}
+    ${pts.map(p => `<circle class="pt" cx="${px(p.lon).toFixed(1)}" cy="${py(p.lat).toFixed(1)}" r="6"><title>${esc(p.name)} (approximate)</title></circle>`).join('')}
+    ${pts.slice(0, 4).map(p => `<text x="${(px(p.lon) + 9).toFixed(1)}" y="${(py(p.lat) + 4).toFixed(1)}">${esc(p.name)}</text>`).join('')}
+  </svg>`;
+  return svg + `<div class="note">Shaded: regions named in the source${national ? ' (nationwide: whole country)' : ''}. Dots: specific places, positions approximate. Boundaries: Natural Earth.</div>`;
+}
+function locationCard(r) {
+  const l = r.loc, places = (l.places || []);
+  const LEVEL = { country: 'Country', admin1: 'Region', admin2: 'District', city: 'City', site: 'Site' };
+  const list = places.length ? `<table class="qt"><tr><th>Place</th><th>Level</th><th>In region</th></tr>${places.map(p => `<tr><td>${esc(p.name)}${p.name_original && p.name_original !== p.name ? ` <span class="orig" lang="${esc(r.lang)}" style="color:var(--muted)">${esc(p.name_original)}</span>` : ''}</td><td>${esc(LEVEL[p.level] || p.level || '')}</td><td>${esc(p.admin1 || '')}</td></tr>`).join('')}</table>`
+    : `<div class="na">${esc(l.as_text || 'No location stated.')}</div>`;
+  const scope = { national: 'Nationwide', multi_region: 'Several regions', region: 'One region', district: 'District', city: 'City', site: 'Specific site', unknown: '' }[l.scope] || '';
+  const hasMap = places.length > 0 || l.scope === 'national';
+  if (!hasMap) return factCard(r, 'Location', 'location', l, list);
+  return factCard(r, 'Location', 'location', l, `${scope ? `<div class="mid">${esc(scope)}${r.country ? ' · ' + esc(r.country) : ''}</div>` : ''}
+    <div class="mapwrap" style="margin-top:8px"><div id="map-slot">${GEO ? mapSvg(r) : '<div class="na">Loading map…</div>'}</div><div>${list}</div></div>`, true);
+}
+
+// ---------- use, domain fields, implementation ----------
+const pretty = (v) => String(v ?? '').replace(/_/g, ' ');
+function useSection(r) {
+  const u = r.use, im = r.impl, df = r.dfields.filter(d => d && d.field);
+  const qById = Object.fromEntries(r.evidence.map(e => [e.id, e]));
+  const anyUse = ['problem', 'primary_user', 'ai_role', 'human_role', 'channel'].some(k => u[k]);
+  const useCard = anyUse ? factCard(r, 'How it is used', 'use', u, kv([['Problem', u.problem], ['Primary user', u.primary_user],
+    ['AI role', AIROLE[u.ai_role] || u.ai_role], ['People around the AI', u.human_role], ['Channel / device', u.channel]])) : '';
+  const tick = (ref) => { const q = qById[ref]; return q ? (q.found === false ? '<span class="ver no">✗</span>' : '<span class="ver ok">✓</span>') : '<span class="ver none">—</span>'; };
+  const dfCard = df.length ? `<div class="fact"><div class="h"><b>${esc(RUNDOM[r.runDomain] || 'Domain')} fields</b><span class="ver none">from the domain module</span></div>
+    <table class="qt"><tr><th>Field</th><th>Value</th><th>Quote</th></tr>${df.map(d => `<tr><td>${esc(pretty(d.field))}</td><td>${d.value ? esc(pretty(d.value)) : '<span class="na">not stated</span>'}</td><td>${d.value ? tick(d.evidence_ref) : ''}</td></tr>`).join('')}</table>
+    ${quotesBlock(r, df.map(d => d.evidence_ref))}</div>` : '';
+  const req = (im.requirements || []), bar = (im.barriers || []), fac = (im.facilitators || []);
+  const implCard = req.length || bar.length || fac.length ? factCard(r, 'Implementation', 'implementation', im,
+    `${req.length ? `<p class="lbl">Requirements</p><ul class="gaps">${req.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+     ${bar.length ? `<p class="lbl">Barriers</p><ul class="gaps">${bar.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+     ${fac.length ? `<p class="lbl">Facilitators</p><ul class="gaps">${fac.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}`) : '';
+  if (!useCard && !dfCard && !implCard) return '';
+  return `<div class="sec"><h3>Use and implementation</h3><div class="facts">${useCard}${dfCard}${implCard}</div></div>`;
+}
+function quotesBlock(r, ids) {
+  const qs = r.evidence.filter(e => ids.includes(e.id));
+  return qs.length ? `<details><summary>Show ${qs.length} quote${qs.length > 1 ? 's' : ''}</summary><div class="quotes">${qs.map(q => quoteHtml(q, r.lang)).join('')}</div></details>` : '';
+}
+
+// ---------- outcomes ----------
+function outcomesSection(r) {
+  const os = r.outcomes.filter(o => o && (o.name || o.domain));
+  if (!os.length) return '';
+  const val = (o) => o.value !== null && o.value !== undefined && o.value !== '' ? `${nfmt(Number(o.value)) || esc(o.value)} <span style="color:var(--muted)">${esc(o.unit || '')}</span>` : '<span class="na">in words</span>';
+  return `<div class="sec"><h3>Outcomes (${os.length})</h3><div style="overflow-x:auto"><table class="qt" style="min-width:760px"><tr><th>Category</th><th>Outcome</th><th style="text-align:right">Result</th><th>Compared with</th><th>When</th><th>Data</th><th>Quote</th></tr>
+    ${os.map(o => `<tr><td>${esc(o.domain || '')}</td>
+      <td><b>${esc(o.name || '')}</b>${o.interpretation ? `<div style="color:var(--muted);font-size:14px">${esc(o.interpretation)}</div>` : ''}
+        <details><summary style="font-size:13px">Details</summary>${kv([['Measured by', o.measure], ['Population', o.population], ['Uncertainty', o.uncertainty], ['Notes', o.notes]])}${quotesBlock(r, [o.evidence_ref])}</details></td>
+      <td class="num">${val(o)}</td><td>${esc(o.comparison || '')}</td><td>${esc(o.timing || '')}</td>
+      <td>${o.data_source === 'developer_or_government_claim' ? '<span class="ver no" title="Not independently verified">Claim</span>' : esc(DSRC[o.data_source] || o.data_source || '')}</td>
+      <td>${o.verified === false ? '<span class="ver no">✗</span>' : o.verified ? '<span class="ver ok">✓</span>' : '<span class="ver none">—</span>'}</td></tr>`).join('')}</table></div>
+    <div class="note">One row per result the source reports. "Claim": the figure comes only from the developer or a government announcement.</div></div>`;
+}
+
+// ---------- source: local copies, how it was found, project ----------
+const endpoint = (name) => location.pathname.replace(/ai4sg-audit\/?$/, name);
+const KIND = { main: 'Page or document', full_text: 'Full text', appendix: 'Appendix', related_report: 'Related report' };
+function sourceSection(r) {
+  const got = r.files.filter(f => f.name), other = r.files.filter(f => !f.name);
+  const filesHtml = got.length || other.length ? `<table class="qt"><tr><th>File</th><th>Copy</th><th>Original</th></tr>
+    ${got.map(f => `<tr><td>${esc(KIND[f.kind] || f.kind)}${f.note ? ` <span style="color:var(--muted)">${esc(f.note)}</span>` : ''}</td>
+      <td><a href="${endpoint('ai4sg-file')}?id=${r.sid}&name=${encodeURIComponent(f.name)}" target="_blank" rel="noopener">Local copy ↗</a>
+        <span style="color:var(--muted)">${f.name.endsWith('.pdf') ? 'PDF' : 'web page'}, ${nfmt(Math.max(1, Math.round((f.bytes || 0) / 1024)))} KB</span></td>
+      <td><a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(String(f.url).replace(/^https?:\/\//, '').slice(0, 60))}</a></td></tr>`).join('')}
+    ${other.map(f => `<tr><td>${esc(KIND[f.kind] || f.kind)}</td><td><span class="ver none">${esc(f.skipped || f.error || 'not downloaded')}</span></td>
+      <td><a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(String(f.url).replace(/^https?:\/\//, '').slice(0, 60))}</a></td></tr>`).join('')}</table>
+    ${r.textChars ? `<div class="note">Text read by the AI: ${nfmt(r.textChars)} characters · <a href="${endpoint('ai4sg-file')}?id=${r.sid}&name=text" target="_blank" rel="noopener">show text</a></div>` : ''}`
+    : '<div class="na">Nothing downloaded (source analysed before the library existed).</div>';
+  const via = r.via ? `<div class="mid" style="font-size:16px">Found by following a lead: ${esc(RELNAME[r.via.rel] || 'linked from')} <a href="#" data-goto="${esc(r.via.id)}">${esc(r.via.title)}</a></div>` : '';
+  const found = kv([['Found by', DBNAME[r.database] || r.database], ['DOI', r.doi]]);
+  const others = r.projectCode ? rows.filter(x => x.projectCode === r.projectCode && x.id !== r.id) : [];
+  const P = projectOf[String(r.sid)];
+  const project = r.projectCode ? `<div class="mid">${P && !P.single ? `<a href="#" data-goto="${esc(P.id)}">${esc(r.projectCode)} · ${esc(P.name)}</a>` : `${esc(r.projectCode)} · ${esc(r.projectName)}`}</div>
+      <div class="note">${r.projectMethod === 'new' ? 'New project created for this source.' : r.projectMethod === 'manual' ? 'Set by a reviewer.' : 'Matched to a known project'} ${esc(r.projectReason || '')}</div>
+      ${others.length ? `<p class="lbl" style="margin-top:8px">Other sources about this project</p><ul class="gaps">${others.map(x => `<li><a href="#" data-goto="${esc(x.id)}">${esc(x.headline)}</a></li>`).join('')}</ul>` : ''}
+      <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center">
+        <button id="pj-detach">Not this project</button><span style="color:var(--muted)">or move to</span>
+        <input id="pj-target" placeholder="P-00012" style="width:110px"><button id="pj-move">Move</button><span class="note" id="pj-msg"></span></div>`
+    : `<div class="na">${r.analysed ? 'Not linked to a project (not about an AI project).' : `Linked after the in-depth analysis.${r.projectGuess ? ' The search names it: ' + esc(r.projectGuess) + '.' : ''}`}</div>`;
+  return `<div class="sec"><h3>Source and project</h3><div class="facts">
+    <div class="fact"><div class="h"><b>Project</b></div>${project}</div>
+    <div class="fact"><div class="h"><b>How it was found</b></div>${via}${found || (via ? '' : '<div class="na">Web search.</div>')}</div>
+    <div class="fact" style="grid-column:1/-1"><div class="h"><b>Local copies</b><span class="ver none">downloaded when found; datasets are never downloaded</span></div>${filesHtml}</div>
+  </div></div>`;
+}
+// links between projects and sources: data-goto="p12" opens a project, "s34" a source
+function open_(id) {
+  const t = id[0] === 'p' ? projects.find(x => x.id === id) : rows.find(x => x.id === id);
+  if (!t) return;
+  selected = t.kind === 'project' ? t.id : (projectOf[String(t.sid)] || t).id; render();
+  if (t.kind === 'project' && t.single && t.srcRows[0]) detail(t.srcRows[0]);
+  else if (t.kind === 'project') projectDetail(t); else detail(t);
+}
+function wireGoto() { $('detail').querySelectorAll('[data-goto]').forEach(a => a.onclick = (e) => { e.preventDefault(); open_(a.dataset.goto); }); }
+function postProject(body, msgEl) {
+  msgEl.textContent = 'Saving…';
+  return fetch(endpoint('ai4sg-project'), { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...body, reviewer: $('me').value.trim() }) })
+    .then(x => x.json()).then(res => {
+      if (!res.ok) throw new Error(res.error || 'not saved');
+      msgEl.textContent = `Saved: now in ${res.code}. The project summaries are being rewritten; the page reloads in 30 seconds.`;
+      setTimeout(() => location.reload(), 30000);
+      return res;
+    }).catch(e => { msgEl.textContent = 'Could not save (' + e.message + ').'; });
+}
+function wireProject(r) {
+  wireGoto();
+  const send = (action, target) => postProject({ source_id: r.sid, action, target }, $('pj-msg'));
+  const d = $('pj-detach'), m = $('pj-move');
+  if (d) d.onclick = () => send('detach', '');
+  if (m) m.onclick = () => { const t = $('pj-target').value.trim().toUpperCase(); if (!/^P-\d{5}$/.test(t)) { $('pj-msg').textContent = 'Enter a project code like P-00012.'; return; } send('move', t); };
+}
+
 // ---------- detail ----------
 function detail(r) {
-  if (!r) { $('detail').innerHTML = '<div class="empty">Select a result on the left.</div>'; return; }
+  if (!r) { $('detail').innerHTML = '<div class="empty">Select a project on the left.</div>'; return; }
   const flags = r.flags.map(f => `<span class="chip flag ${(FLAGS[f] || [])[1] || ''}">⚠ ${esc((FLAGS[f] || [f])[0])}</span>`).join('');
-  const c = r.cost, b = r.benefit, re = r.reach, p = r.project;
+  const b = r.benefit, re = r.reach, p = r.project, t = r.tech, tl = r.timeline;
   const evIdx = EVID.findIndex(e => e[0] === (r.evid.type || 'none'));
-  let h = `<h2>${esc(r.headline)}</h2>
-    <div class="chips">${chips(r)}</div>
+  const P0 = projectOf[String(r.sid)], P = P0 && !P0.single ? P0 : null, solo = P0 && P0.single ? P0 : null;
+  const dupOf = r.duplicateOf && bySid[r.duplicateOf];
+  let h = `<div class="body">${P ? `<a href="#" class="back" data-goto="${esc(P.id)}">← ${esc(P.code)} · ${esc(P.name)}</a><div class="kind" style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Source S${esc(r.sid)} of this deployment${P.toolCode ? ` · tool ${esc(P.toolCode)} ${esc(P.toolName)}` : ''}</div>`
+      : solo ? `<div class="kind" style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Deployment ${esc(solo.code)}${solo.toolCode ? ` · tool ${esc(solo.toolCode)} ${esc(solo.toolName)}` : ''} · its only source</div>` : ''}<h2>${esc(r.headline)}</h2>
+    <div class="chips">${domChip(r)}${chips(r)}${decisionChip(r)}</div>
+    ${r.duplicate ? `<div class="banner warn">Duplicate: the same document as ${dupOf ? `<a href="#" data-goto="${esc(dupOf.id)}">S${esc(r.duplicateOf)} · ${esc(dupOf.headline)}</a>` : 'S' + esc(r.duplicateOf)}, so it is not analysed${r.pick && r.pick.group_reason ? ': ' + esc(r.pick.group_reason) : ''}.</div>` : ''}
+    ${r.pick && r.pick.group_reason && !r.duplicate && r.projectCode ? `<div class="note" style="margin-top:6px">Placed in ${esc(r.projectCode)} by the organiser: ${esc(r.pick.group_reason)}</div>` : ''}
     ${r.failed ? '<div class="banner bad">The AI could not produce a structured result for this source. Open the source to review it manually.</div>' : ''}
-    ${r.filtered ? `<div class="banner warn">Filtered out by the AI screen${r.screen ? ` (AI4SG: ${r.screen.is_ai4sg ? 'yes' : 'no'}, relevance ${Math.round(100 * (r.screen.relevance || 0))}%)` : ''}. Shown only for spot-checks. ${r.screen && r.screen.reason ? esc(r.screen.reason) : ''}</div>` : ''}
+    ${r.pick && r.pick.reason ? `<div class="banner">${r.pick.selected ? `Chosen for the in-depth analysis${r.pick.rank ? ' (#' + esc(r.pick.rank) + ')' : ''}` : 'Not chosen for the analysis yet'}: ${esc(r.pick.reason)} <span class="ver none">${esc(r.pick.method || '')}</span></div>` : ''}
+    ${r.queued ? `<div class="banner warn">Queued: passed the AI screen${r.screen && r.screen.relevance != null ? ` (relevance ${Math.round(100 * r.screen.relevance)}%)` : ''} and waits for the in-depth analysis: the next run of this domain chooses again from the whole queue, or send it to the analysis now from Not analysed yet${r.screen && r.screen.reason ? '. Screen: ' + esc(r.screen.reason) : ''}.</div>` : ''}
+    ${r.notDownloaded ? `<div class="banner bad">The source could not be downloaded (${esc((r.files.find(f => f.error) || {}).error || 'no readable text')}), so it was not screened. Open it to check it by hand.</div>` : ''}
+    ${r.filtered ? `<div class="banner warn">Filtered out by the AI screen${r.screen ? ` (AI4SG: ${r.screen.is_ai4sg ? 'yes' : 'no'}, screen relevance ${Math.round(100 * (r.screen.relevance || 0))}%)` : ''}. Shown only for spot-checks. ${r.screen && r.screen.reason ? esc(r.screen.reason) : ''}</div>` : ''}
     ${flags ? `<div class="chips" style="margin-top:8px">${flags}</div>` : ''}
     <div class="titles"><div class="o orig" lang="${esc(r.lang)}">${esc(r.titleOrig || '—')}</div>
       ${r.titleEn && r.titleEn !== r.titleOrig ? `<div class="e">English: ${esc(r.titleEn)}</div>` : ''}
       <div class="e">${esc([r.publisher, r.published].filter(Boolean).join(' · '))} · <a href="${esc(r.url)}" target="_blank" rel="noopener">Open source ↗</a></div></div>
     ${r.summary ? `<p>${esc(r.summary)}</p>` : ''}`;
-  if (!r.failed && !r.filtered) {
-    h += `<div class="sec"><h3>Key facts</h3><div class="facts">
-      ${factCard(r, 'Cost', 'cost', c, c.stated ? `<div class="big">${esc(c.currency || '')} ${nfmt(c.amount)}</div>
-        ${kv([['As written', c.amount_as_written], ['Covers', c.what_is_covered], ['Per beneficiary', c.cost_per_beneficiary != null ? `${c.currency || ''} ${nfmt(c.cost_per_beneficiary)}` : '']])}`
-        : '<div class="na">No cost figure in the source.</div>')}
-      ${factCard(r, 'Benefit', 'benefit', b, b.stated ? `<div class="big" style="font-size:17px">${esc(b.magnitude || b.outcome || '')}</div>
+  if (r.analysed && !r.failed && !r.filtered) {
+    h += `<div class="sec"><h3>Relevance</h3>${scoreCard(r)}</div>
+    <div class="sec"><h3>What, when, where</h3><div class="facts">
+      ${factCard(r, 'AI technology', 'technology', t, t.specific || t.category ? `<div class="mid">${esc(TECH[t.category] || t.category || 'Not specified')}</div>
+        ${kv([['What it does', t.specific], ['Model / product', t.model_or_product], ['Data used', t.data_used]])}` : '<div class="na">The source does not say what the AI does.</div>')}
+      ${factCard(r, 'Timeline', 'timeline', tl, tl.start_date || tl.end_date || (tl.status && tl.status !== 'unknown') ? `<div class="mid">${esc(TSTATUS[tl.status] || tl.status || 'Unknown')}</div>
+        ${kv([['Start', tl.start_date || 'not stated'], ['End', tl.end_date || (tl.status === 'ongoing' ? 'ongoing' : 'not stated')], ['As written', tl.as_written]])}` : '<div class="na">No dates stated.</div>')}
+      ${locationCard(r)}
+    </div></div>
+    ${useSection(r)}
+    <div class="sec"><h3>Cost</h3><div class="facts">${costSection(r)}</div></div>
+    <div class="sec"><h3>Results</h3><div class="facts">
+      ${factCard(r, 'Benefit', 'benefit', b, b.stated ? `<div class="mid">${esc(b.magnitude || b.outcome || '')}</div>
         ${kv([['Outcome', b.outcome], ['Measured by', b.metric], ['Compared with', b.comparison]])}`
         : `<div class="na">No outcome for people stated.</div>${(b.outputs_reported || []).length ? kv([['Outputs only', b.outputs_reported]]) : ''}`)}
       ${factCard(r, 'Reach', 'reach', re, re.stated || re.number ? `<div class="big">${nfmt(re.number)}</div>${kv([['Unit', re.unit], ['Type', re.is_target ? 'Target (not yet reached)' : 'Achieved']])}`
         : '<div class="na">Not stated.</div>')}
       <div class="fact"><div class="h"><b>Strength of evidence</b></div>
-        <div style="font-weight:600">${esc((EVID[evIdx] || ['', 'Unknown'])[1])}</div>
+        <div class="mid">${esc((EVID[evIdx] || ['', 'Unknown'])[1])}</div>
         <div class="ladder">${EVID.map((e, i) => `<span class="${i >= evIdx && evIdx >= 0 ? 'on' : ''}" title="${e[1]}"></span>`).reverse().join('')}</div>
         <div class="ladder-l"><span>None</span><span>RCT</span></div>
-        ${r.evid.rationale ? `<div style="font-size:13px;margin-top:6px">${esc(r.evid.rationale)}</div>` : ''}</div>
+        ${r.evid.rationale ? `<div style="font-size:15px;margin-top:6px">${esc(r.evid.rationale)}</div>` : ''}</div>
     </div></div>
+    ${outcomesSection(r)}
     <div class="sec"><h3>Project</h3>${factCard(r, p.name || 'Project', 'project', p, kv([
-      ['Run by', p.implementing_org], ['Partners', p.partners], ['Funders', p.funders], ['Where', [(p.countries || []).join(', '), p.location].filter(Boolean).join(' · ')],
-      ['Domain', DOMAIN[p.domain] || p.domain], ['AI used for', p.ai_technique], ['Stage', STAGE[p.deployment_stage] || p.deployment_stage], ['For whom', p.target_beneficiaries]]))}</div>`;
+      ['Run by', p.implementing_org], ['Partners', p.partners], ['Funders', p.funders], ['Countries', p.countries],
+      ['Domain', DOMAIN[p.domain] || p.domain], ['Stage', STAGE[p.deployment_stage] || p.deployment_stage],
+      ['Government role', GOVROLE[p.government_role] || p.government_role], ['For whom', p.target_beneficiaries]]))}</div>`;
   }
   const it = r.interp || {};
   if (it.overall || it.cost_benefit || it.credibility || (it.gaps || []).length) {
@@ -284,45 +639,351 @@ function detail(r) {
       ${it.credibility ? `<p><span class="lbl">Credibility: </span>${esc(it.credibility)}</p>` : ''}
       ${(it.gaps || []).length ? `<p class="lbl">What is missing</p><ul class="gaps">${it.gaps.map(g => `<li>${esc(g)}</li>`).join('')}</ul>` : ''}</div>`;
   }
-  if (r.risks.length) h += `<div class="sec"><h3>Risks & limitations mentioned</h3><ul class="gaps">${r.risks.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`;
+  if (r.risks.length && !(r.impl.barriers || []).length) h += `<div class="sec"><h3>Risks & limitations mentioned</h3><ul class="gaps">${r.risks.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`;
   if (r.evidence.length) h += `<div class="sec"><h3>All quotes (${r.evidence.length})</h3><table class="qt"><tr><th></th><th>Original · ${esc(langName(r.lang))}</th><th>English</th><th>Used for</th></tr>
     ${r.evidence.map(q => `<tr><td>${q.found === false ? '<span class="ver no">✗</span>' : q.found ? '<span class="ver ok">✓</span>' : ''}</td>
       <td class="orig" lang="${esc(r.lang)}">${esc(q.quote_original)}</td><td>${esc(q.quote_en || '')}</td><td>${esc(q.field || '')}</td></tr>`).join('')}</table></div>`;
-  h += `<div class="sec"><details><summary>Raw data (for debugging)</summary><pre>${esc(JSON.stringify(r.raw, null, 2))}</pre></details></div>`;
+  h += sourceSection(r);
+  h += `<div class="sec" style="margin-bottom:12px"><details><summary>Raw data (for debugging)</summary><pre>${esc(JSON.stringify(r.raw, null, 2))}</pre></details></div></div>`;
+  if (r.eid) h += reviewBar(r);
   $('detail').innerHTML = h; $('detail').scrollTop = 0;
+  if (r.eid) wireReview(r);
+  wireProject(r);
+  if (r.analysed && !r.failed && !r.filtered && !GEO) loadGeo().then(() => { const slot = $('map-slot'); if (slot) slot.innerHTML = mapSvg(r); });
+}
+function reviewChip(P) {
+  if (!P.live || !P.live.length) return '';
+  if (P.waiting) return `<span class="chip">${P.live.length - P.waiting}/${P.live.length} sources reviewed</span>`;
+  return P.decision === 'rejected' ? '<span class="chip fail">✗ A source failed</span>' : '<span class="chip pass">✓ All sources passed</span>';
+}
+function decisionChip(r) {
+  return r.decision === 'approved' ? '<span class="chip pass">✓ Passed</span>' : r.decision === 'rejected' ? '<span class="chip fail">✗ Failed</span>' : '';
 }
 function chips(r) {
-  return [r.country, langName(r.lang), SRC[r.sourceType] || r.sourceType, STAGE[r.stage], DOMAIN[r.domain]]
+  return [r.projectCode ? `${r.projectCode} · ${projectSize(r.projectCode)} source${projectSize(r.projectCode) > 1 ? 's' : ''}` : '',
+    r.runDomain ? `Found by a ${RUNDOM[r.runDomain] || r.runDomain} run` : '', r.country, langName(r.lang), SRC[r.sourceType] || r.sourceType, r.analysed ? STAGE[r.stage] : '', DOMAIN[r.domain],
+    r.engine ? (r.engine === 'codex' ? 'Found by Codex agent' : 'Found by single API call') : '',
+    r.database && r.database !== 'web' ? DBNAME[r.database] || r.database : '', r.via ? 'Cascade' : '']
     .filter(Boolean).map(x => `<span class="chip">${esc(x)}</span>`).join('');
+}
+
+// ---------- project detail (the unit the experts review) ----------
+const tagged = (items, fmt) => items.length ? `<ul class="tagged">${items.map(x => `<li>${fmt ? fmt(x) : esc(x.text)}${stags(x.sids || [x.sid])}</li>`).join('')}</ul>` : '<div class="na">Not stated.</div>';
+const groupTexts = (items) => { const m = new Map(); (items || []).forEach(x => { const k = String(x.text).trim().toLowerCase(); if (!k) return;
+  if (m.has(k)) m.get(k).sids.push(x.sid); else m.set(k, { text: String(x.text).trim(), sids: [x.sid] }); }); return [...m.values()]; };
+function pfact(title, body, wide) { return `<div class="fact"${wide ? ' style="grid-column:1/-1"' : ''}><div class="h"><b>${title}</b></div>${body}</div>`; }
+function projectSources(P) {
+  const sy = P.sy, meta = Object.fromEntries((sy.sources || []).map(x => [String(x.sid), x]));
+  const LINK = { organised: 'grouped by the organiser', duplicate: 'duplicate', new: 'started the project', llm: 'matched by AI', merged: 'merged', manual: 'placed by a reviewer', auto: 'matched' };
+  const list = P.sids.map(id => ({ r: bySid[String(id)], m: meta[String(id)] || {} })).filter(x => x.r)
+    .sort((a, b) => (EVORDER.indexOf(b.m.evidence || 'none') - EVORDER.indexOf(a.m.evidence || 'none')) || ((b.r.score || 0) - (a.r.score || 0)));
+  return `<div class="sec"><h3>Sources (${list.length})</h3><div style="overflow-x:auto"><table class="qt" style="min-width:720px">
+    <tr><th></th><th>Source</th><th>Type</th><th>Evidence</th><th title="text the AI read">Text</th><th style="text-align:right">Score</th><th>Review</th><th>Linked</th></tr>
+    ${list.map(({ r, m }) => `<tr><td>${stag(r.sid)}</td>
+      <td><a href="#" data-goto="${esc(r.id)}">${esc(r.headline)}</a><div style="color:var(--muted);font-size:13px">${esc([m.publisher || r.publisher, m.published || r.published].filter(Boolean).join(' · '))}
+        ${r.flags.length ? ` <span class="ver no" title="${esc(r.flags.map(f => (FLAGS[f] || [f])[0]).join('; '))}">⚠ ${r.flags.length}</span>` : ''}${r.filtered ? ' <span class="ver none">judged not AI4SG</span>' : ''}${r.failed ? ' <span class="ver no">extraction failed</span>' : ''}${r.duplicate ? ` <span class="ver none">duplicate of S${esc(r.duplicateOf)}: not analysed</span>` : !r.analysed ? ` <span class="ver none" title="${esc(r.pick && r.pick.reason || '')}">queued, not analysed yet${r.pick && r.pick.selected === false && r.pick.reason ? ': ' + esc(r.pick.reason) : ''}</span>` : ''}</div></td>
+      <td>${esc(SRC[r.sourceType] || r.sourceType || '')}</td><td>${esc((EVID.find(e => e[0] === (m.evidence || r.evid.type)) || ['', '—'])[1])}</td>
+      <td>${m.text_level === 'full' ? 'Full text' : m.text_level === 'abstract' ? '<span class="ver none">Abstract only</span>' : r.textChars ? nfmt(r.textChars) + ' chars' : '—'}</td>
+      <td class="num">${r.score == null ? '—' : r.score}</td>
+      <td>${r.eid && !r.filtered ? (r.decision ? decisionChip(r) : '<a href="#" data-goto="' + esc(r.id) + '">review →</a>') : ''}</td>
+      <td><span title="${esc(r.projectReason)}">${esc(LINK[r.projectMethod] || r.projectMethod || '')}</span></td></tr>`).join('')}</table></div>
+    <div class="note">Experts review each source: open it to see its extraction, every quote checked against its text, the local copies, and the Pass / Fail buttons. Move a source to another deployment from its page.</div></div>`;
+}
+function projectDetail(P) {
+  const sy = P.sy, llm = P.llm || {};
+  const evIdx = EVID.findIndex(e => e[0] === P.evid);
+  const chipsH = [P.code, P.toolCode ? `Tool ${P.toolCode} · ${P.toolName}` : '', `${P.sids.length} source${P.sids.length > 1 ? 's' : ''}`, ...P.countries, STAGE[P.stage] || '', (EVID.find(e => e[0] === P.evid) || ['', ''])[1] ? 'Best evidence: ' + (EVID.find(e => e[0] === P.evid) || ['', ''])[1] : '',
+    ].filter(Boolean).map(x => `<span class="chip">${esc(x)}</span>`).join('') + domChip(P);
+  const flags = Object.entries(sy.flags || {}).map(([f, n]) => `<span class="chip flag ${(FLAGS[f] || [])[1] || ''}">⚠ ${esc((FLAGS[f] || [f])[0])} · ${n} source${n > 1 ? 's' : ''}</span>`).join('');
+  const dep = P.deployment || {};
+  const sibs = P.toolCode ? projects.filter(Q => Q.toolCode === P.toolCode && Q.id !== P.id) : [];
+  let h = `<div class="body"><div class="kind" style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Deployment (project)</div><h2>${esc(P.name)}</h2>
+    <div class="chips">${chipsH}${reviewChip(P)}</div>
+    ${dep.place || dep.phase || dep.org ? `<div class="note">${esc([dep.org, dep.place, dep.phase].filter(Boolean).join(' · '))}</div>` : ''}
+    ${P.toolCode ? `<div class="note">Tool ${esc(P.toolCode)} ${esc(P.toolName)}${P.toolDev ? ' (' + esc(P.toolDev) + ')' : ''}: ${sibs.length ? `other deployments ${sibs.map(Q => `<a href="#" data-goto="${esc(Q.id)}">${esc(Q.code)} · ${esc(Q.name)}</a>`).join(' · ')}` : 'no other deployment known'}</div>` : ''}
+    ${P.pending ? '<div class="banner warn">The project summary is being written (or the last run stopped before it). Its sources are listed below; reload in a minute, or use “Find duplicate projects” at the top to summarise it.</div>' : ''}
+    ${flags ? `<div class="chips" style="margin-top:8px">${flags}</div>` : ''}
+    ${(sy.names || []).length > 1 || P.aliases.length ? `<div class="note">Also called: ${esc([...new Set([P.dbName, ...P.aliases, ...(sy.names || [])])].filter(n => n && n !== P.name).join(' · '))}</div>` : ''}`;
+  if (llm.summary || llm.evidence) h += `<div class="sec interp"><h3>Project summary <span style="text-transform:none;letter-spacing:0;font-weight:400">· ${esc(llm.by === 'single source' ? 'from its only analysed source' : (llm.by || ''))}</span></h3>
+    ${llm.summary ? `<p>${esc(llm.summary)}</p>` : ''}${llm.evidence ? `<p><span class="lbl">What the evidence shows: </span>${esc(llm.evidence)}</p>` : ''}
+    ${(llm.agreements_conflicts || []).length ? `<p class="lbl">Where the sources agree or disagree</p><ul class="gaps">${llm.agreements_conflicts.map(g => `<li>${linkS(g)}</li>`).join('')}</ul>` : ''}
+    ${(llm.gaps || []).length ? `<p class="lbl">What is missing</p><ul class="gaps">${llm.gaps.map(g => `<li>${linkS(g)}</li>`).join('')}</ul>` : ''}</div>`;
+  h += projectSources(P);
+  if (sy.version) {
+    const tl = sy.timeline || {}, places = sy.places || [];
+    const LEVEL = { country: 'Country', admin1: 'Region', admin2: 'District', city: 'City', site: 'Site' };
+    const pseudo = { country: P.country, project: { countries: P.countries }, loc: { places, scope: sy.scope }, lang: '' };
+    h += `<div class="sec"><h3>Who, what, when, where</h3><div class="facts">
+      ${pfact('Organisations', kv([['Run by', sy.orgs], ['Partners', sy.partners], ['Funders', sy.funders], ['Government role', (sy.government_roles || []).map(g => GOVROLE[g] || g)],
+        ['For whom', sy.beneficiaries], ['Domain', (sy.domains || []).map(d => DOMAIN[d] || d)]]))}
+      ${pfact('AI technology', `<div class="mid">${esc((sy.tech_categories || []).map(c => TECH[c] || c).join(', ') || 'Not specified')}</div>
+        ${(sy.products || []).length ? kv([['Products', sy.products]]) : ''}${tagged(groupTexts(sy.tech))}`)}
+      ${pfact('Timeline', `<div class="mid">${esc(TSTATUS[tl.status] || tl.status || 'Unknown')} · ${esc(STAGE[sy.stage] || sy.stage || '')}</div>
+        ${kv([['Earliest start', tl.start || 'not stated'], ['Latest end', tl.end || (tl.status === 'ongoing' ? 'ongoing' : 'not stated')]])}
+        ${(tl.per_source || []).length ? tagged(tl.per_source.map(t => ({ text: [t.start && 'from ' + t.start, t.end && 'to ' + t.end, TSTATUS[t.status] || t.status, t.as_written && '“' + t.as_written + '”'].filter(Boolean).join(' · '), sid: t.sid }))) : ''}`)}
+      ${pfact('Location', `${places.length || sy.scope === 'national' ? `<div class="mapwrap" style="margin-top:8px"><div id="map-slot">${GEO ? mapSvg(pseudo) : '<div class="na">Loading map…</div>'}</div>
+        <div><table class="qt"><tr><th>Place</th><th>Level</th><th>Region</th><th></th></tr>${places.map(pl => `<tr><td>${esc(pl.name)}</td><td>${esc(LEVEL[pl.level] || pl.level || '')}</td><td>${esc(pl.admin1 || '')}</td><td>${stags(pl.sids)}</td></tr>`).join('')}</table></div></div>`
+        : '<div class="na">No place stated.</div>'}`, true)}
+    </div></div>`;
+    const u = sy.use || {};
+    h += `<div class="sec"><h3>Use and implementation</h3><div class="facts">
+      ${pfact('How it is used', `${kv([['Primary users', u.users], ['AI role', (u.ai_roles || []).map(a => AIROLE[a] || a)], ['Channel / device', u.channels]])}
+        ${(u.problems || []).length ? `<p class="lbl" style="margin-top:8px">Problem</p>${tagged(groupTexts(u.problems))}` : ''}
+        ${(u.human_roles || []).length ? `<p class="lbl">People around the AI</p>${tagged(groupTexts(u.human_roles))}` : ''}
+        ${!(u.problems || []).length && !(u.human_roles || []).length && !(u.users || []).length && !(u.ai_roles || []).length && !(u.channels || []).length ? '<div class="na">Not stated.</div>' : ''}`)}
+      ${(sy.domain_fields || []).length ? pfact(`${esc(RUNDOM[P.runDomain] || 'Domain')} fields`, `<table class="qt"><tr><th>Field</th><th>Value</th></tr>${sy.domain_fields.map(d => `<tr><td>${esc(pretty(d.field))}</td>
+        <td>${(d.values || []).length ? d.values.map(v => `${esc(pretty(v.value))}${v.verified === false ? ' <span class="ver no" title="quote not found">✗</span>' : ''}${stags(v.sids || [v.sid])}`).join('<br>') : '<span class="na">not stated</span>'}</td></tr>`).join('')}</table>`) : ''}
+      ${(sy.requirements || []).length || (sy.barriers || []).length || (sy.facilitators || []).length ? pfact('Implementation', `${(sy.requirements || []).length ? `<p class="lbl">Requirements</p>${tagged(groupTexts(sy.requirements))}` : ''}<p class="lbl">Barriers</p>${tagged(groupTexts(sy.barriers))}<p class="lbl">Facilitators</p>${tagged(groupTexts(sy.facilitators))}`) : ''}
+    </div></div>`;
+    const reach = sy.reach || [], cost = sy.cost || [];
+    h += `<div class="sec"><h3>Reach, cost and evidence</h3><div class="facts">
+      ${pfact('Reach', reach.length ? `<div class="big">${nfmt(Number(reach[0].number))}</div><div class="note">largest figure, ${esc(reach[0].unit || '')} ${stag(reach[0].sid)}</div>
+        ${reach.length > 1 ? `<table class="qt" style="margin-top:6px">${reach.map(x => `<tr><td class="num">${nfmt(Number(x.number))}</td><td>${esc(x.unit || '')}${x.is_target ? ' <span class="ver none">target</span>' : ''}</td><td>${stag(x.sid)}</td></tr>`).join('')}</table>` : ''}` : '<div class="na">No source states how many people it reached.</div>')}
+      ${pfact('Cost', cost.length ? `<table class="qt">${cost.map(c => `<tr><td class="num">${esc(c.currency || '')} ${nfmt(Number(c.amount)) || esc(c.amount_as_written || '')}</td><td>${esc(c.what_is_covered || '')}${(c.breakdown || []).length ? ` <span class="ver none">${c.breakdown.length} items</span>` : ''}</td><td>${stag(c.sid)}</td></tr>`).join('')}</table>
+        <div class="note">Breakdowns and their quotes are on each source's page.</div>` : '<div class="na">No source gives a cost.</div>')}
+      <div class="fact"><div class="h"><b>Strength of evidence</b><span class="ver none">strongest of the sources</span></div>
+        <div class="mid">${esc((EVID[evIdx] || ['', 'Unknown'])[1])} ${sy.evidence_best && sy.evidence_best.sid ? stag(sy.evidence_best.sid) : ''}</div>
+        <div class="ladder">${EVID.map((e, i) => `<span class="${i >= evIdx && evIdx >= 0 ? 'on' : ''}" title="${e[1]}"></span>`).reverse().join('')}</div>
+        <div class="ladder-l"><span>None</span><span>RCT</span></div>
+        ${(sy.evidence || []).length > 1 ? `<div class="note">${sy.evidence.map(e => `${esc((EVID.find(x => x[0] === e.type) || ['', e.type])[1])} ${stag(e.sid)}`).join(' · ')}</div>` : ''}</div>
+    </div></div>`;
+    h += projectOutcomes(P);
+  }
+  h += `<div class="sec"><h3>Project record</h3><div class="facts">${pfact('Merge', `<div class="note" style="margin-top:0">If this is the same project as another one, move all its sources there; its name is kept as an alias.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center"><span>Merge ${esc(P.code)} into</span><input id="mg-target" placeholder="P-00012" style="width:110px"><button id="mg-go">Merge</button><span class="note" id="mg-msg"></span></div>`)}</div></div>
+    <div class="sec" style="margin-bottom:12px"><details><summary>Raw project record (for debugging)</summary><pre>${esc(JSON.stringify(sy, null, 2))}</pre></details></div></div>`;
+  h += `<div class="review"><div class="st">${P.live.length ? `${P.live.length - P.waiting} of ${P.live.length} analysed source${P.live.length > 1 ? 's' : ''} reviewed. ` : 'No analysed source yet. '}Pass or fail each source on its own page (Review column above).
+    ${P.oldDecision ? `<br>Earlier project-level decision: ${P.oldDecision === 'approved' ? '✓ Passed' : '✗ Failed'}${P.oldReviewer ? ' by ' + esc(P.oldReviewer) : ''}${P.oldComment ? ' · “' + esc(P.oldComment) + '”' : ''}` : ''}</div></div>`;
+  $('detail').innerHTML = h; $('detail').scrollTop = 0;
+  wireGoto();
+  $('mg-go').onclick = () => { const t = $('mg-target').value.trim().toUpperCase();
+    if (!/^P-\d{5}$/.test(t) || t === P.code) { $('mg-msg').textContent = 'Enter another project code like P-00012.'; return; }
+    postProject({ project: P.code, action: 'merge', target: t }, $('mg-msg')); };
+  if (sy.version && !GEO) loadGeo().then(() => { const slot = $('map-slot'); if (slot && selected === P.id) slot.innerHTML = mapSvg({ country: P.country, project: { countries: P.countries }, loc: { places: sy.places || [], scope: sy.scope } }); });
+}
+// "[S12]" in the model's text becomes a link to that source
+const linkS = (t) => esc(t).replace(/\[S(\d+)\]/g, (m, id) => bySid[id] ? stag(id) : m);
+function projectOutcomes(P) {
+  const os = (P.sy.outcomes || []).filter(o => o && (o.name || o.domain));
+  if (!os.length) return '';
+  const val = (o) => o.value !== null && o.value !== undefined && o.value !== '' ? `${nfmt(Number(o.value)) || esc(o.value)} <span style="color:var(--muted)">${esc(o.unit || '')}</span>` : '<span class="na">in words</span>';
+  const byDomain = os.slice().sort((a, b) => String(a.domain || '').localeCompare(String(b.domain || '')) || (a.sid - b.sid));
+  return `<div class="sec"><h3>Outcomes from all sources (${os.length})</h3><div style="overflow-x:auto"><table class="qt" style="min-width:820px"><tr><th>Category</th><th>Outcome</th><th style="text-align:right">Result</th><th>Compared with</th><th>When</th><th>Data</th><th>Source</th><th>Quote</th></tr>
+    ${byDomain.map(o => { const r = bySid[String(o.sid)]; return `<tr><td>${esc(o.domain || '')}</td>
+      <td><b>${esc(o.name || '')}</b>${o.interpretation ? `<div style="color:var(--muted);font-size:14px">${esc(o.interpretation)}</div>` : ''}
+        <details><summary style="font-size:13px">Details</summary>${kv([['Measured by', o.measure], ['Population', o.population], ['Uncertainty', o.uncertainty], ['Notes', o.notes]])}${r ? quotesBlock(r, [o.evidence_ref]) : ''}</details></td>
+      <td class="num">${val(o)}</td><td>${esc(o.comparison || '')}</td><td>${esc(o.timing || '')}</td>
+      <td>${o.data_source === 'developer_or_government_claim' ? '<span class="ver no" title="Not independently verified">Claim</span>' : esc(DSRC[o.data_source] || o.data_source || '')}</td>
+      <td>${stag(o.sid)}</td>
+      <td>${o.verified === false ? '<span class="ver no">✗</span>' : o.verified ? '<span class="ver ok">✓</span>' : '<span class="ver none">—</span>'}</td></tr>`; }).join('')}</table></div>
+    <div class="note">Every row is one result one source reports; the same measure from two sources appears twice, each with its own source, so differences stay visible.</div></div>`;
+}
+
+// ---------- review (pass / fail) ----------
+function reviewBar(r) {
+  const last = r.decision ? `<div class="st">${r.decision === 'approved' ? '<span class="chip pass">✓ Passed</span>' : '<span class="chip fail">✗ Failed</span>'}
+    ${r.reviewer ? 'by ' + esc(r.reviewer) : ''} ${r.reviewedAt ? '· ' + esc(new Date(r.reviewedAt).toLocaleString()) : ''}${r.rcomment ? ' · “' + esc(r.rcomment) + '”' : ''}${r.changed ? ' · <b>sources changed since then</b>' : ''} · you can change it below</div>` : '';
+  return `<div class="review">${last}<div class="row">
+    <textarea id="rv-comment" placeholder="Comment on this source's extraction (optional): what is wrong or missing, what you corrected…"></textarea>
+    <button class="btn-pass" id="rv-pass">✓ Pass</button><button class="btn-fail" id="rv-fail">✗ Fail</button></div>
+    <div class="note" id="rv-msg"></div></div>`;
+}
+function wireReview(r) {
+  const send = (decision) => {
+    const reviewer = $('me').value.trim();
+    if (!reviewer) { $('rv-msg').textContent = 'Please enter your name at the top of the page first.'; $('me').focus(); return; }
+    const comment = $('rv-comment').value.trim();
+    $('rv-msg').textContent = 'Saving…';
+    fetch(location.pathname.replace(/ai4sg-audit\/?$/, 'ai4sg-review'), { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(r.kind === 'project' ? { project_id: r.pid, decision, comment, reviewer } : { extraction_id: Number(r.eid), decision, comment, reviewer }) })
+      .then(x => x.json()).then(res => {
+        if (!res.ok) throw new Error(res.error || 'not saved');
+        Object.assign(r, { decision, rcomment: comment, reviewer, reviewedAt: res.reviewed_at || new Date().toISOString(), changed: false });
+        const P = projectOf[String(r.sid)]; if (P) reviewState(P);
+        kpis(); render(); detail(r);
+        $('rv-msg').textContent = 'Saved.';
+      }).catch(e => { $('rv-msg').textContent = 'Could not save (' + e.message + '). Is the system still online?'; });
+  };
+  const bp = $('rv-pass'), bf = $('rv-fail');
+  if (bp) bp.onclick = () => send('approved');
+  if (bf) bf.onclick = () => send('rejected');
+}
+
+// ---------- not analysed yet: every source without an in-depth analysis, with the reason; reviewers can send any to the analysis ----------
+const NA = [
+  ['queued', 'Waiting in the queue', 'Passed the screen but not chosen yet: with an analysis budget (“Max sources to analyse”), GPT-6 Sol chooses from the whole queue the sources most worth analysing; the reason for each is shown.', r => r.queued],
+  ['duplicate', 'Duplicates', 'The same document as another source (another address, a preprint, a reprint), found by the organiser: kept with its deployment, not analysed.', r => r.duplicate],
+  ['screened', 'Set aside by the screen', 'GPT-6 Luna judged it not AI4SG, outside the domain, or below the relevance threshold.', r => !r.analysed && r.status === 'filtered_out'],
+  ['notdl', 'Could not be downloaded', 'No readable text (blocked, bot check, unsupported file); it is tried again once in a later run.', r => !r.analysed && r.status === 'collect_failed'],
+  ['other', 'Not screened yet', 'Downloaded or found, but the run stopped before the screen.', r => !r.analysed && ['collected', 'candidate'].includes(r.status)],
+  ['judged', 'Analysed: judged not AI4SG', 'The in-depth analysis concluded it is not about an AI4SG project (shown for spot-checks).', r => r.analysed && r.filtered],
+];
+let naTab = 'queued', naQ = '', naSort = '';
+const naSel = new Set(), naSent = new Set();
+function naWhy(r, g) {
+  const sc = r.screen || {};
+  if (g === 'queued' && r.pick && r.pick.selected === false) return [`Not chosen for analysis: ${r.pick.reason || ''}`, sc.relevance != null ? `screen ${Math.round(100 * sc.relevance)}%` : ''].filter(Boolean).join(' · ');
+  if (g === 'queued' || g === 'screened') return [sc.relevance != null ? `Screen ${Math.round(100 * sc.relevance)}%` : '', sc.in_domain === false ? 'outside the domain' : '',
+    sc.is_ai4sg === false ? 'not AI4SG' : '', sc.reason || ''].filter(Boolean).join(' · ');
+  if (g === 'duplicate') { const o = bySid[r.duplicateOf]; return `Same document as S${r.duplicateOf}${o ? ' · ' + o.headline : ''}${r.pick && r.pick.group_reason ? ' · ' + r.pick.group_reason : ''}`; }
+  if (g === 'notdl') return [...new Set(r.files.map(f => f.error || f.skipped).filter(Boolean))].join(' · ') || 'no readable text';
+  if (g === 'judged') return (r.interp && r.interp.overall) || r.summary || '';
+  if (r.screen && r.screen.error) return `the screen failed (${r.screen.error}); it is screened again in the next run of this domain`;
+  return r.status === 'candidate' ? 'not downloaded yet' : 'downloaded, not screened';
+}
+function naText(r) { return r.textLevel === 'full' || r.textChars >= 3000 ? 'Full text' : r.textChars >= 300 ? 'Abstract' : r.textChars ? 'Too short' : 'None'; }
+function pendingSection() {
+  const groups = NA.map(([k, label, help, test]) => ({ k, label, help, list: rowsD().filter(test) }));
+  const g = groups.find(x => x.k === naTab) || groups[0];
+  const q = naQ.toLowerCase();
+  let list = g.list.filter(r => !q || [r.headline, r.titleEn, r.titleOrig, r.projectGuess, r.country, r.url].join(' ').toLowerCase().includes(q));
+  const newest = (a, b) => String(b.created || '').localeCompare(String(a.created || ''));
+  const bySort = { relevance: (a, b) => ((b.screenRel || 0) - (a.screenRel || 0)) || newest(a, b), new: newest,
+    domain: (a, b) => domOf(a).localeCompare(domOf(b)) || ((b.screenRel || 0) - (a.screenRel || 0)),
+    country: (a, b) => String(a.country || '').localeCompare(String(b.country || '')) || ((b.screenRel || 0) - (a.screenRel || 0)),
+    type: (a, b) => String(a.sourceType || '').localeCompare(String(b.sourceType || '')) || ((b.screenRel || 0) - (a.screenRel || 0)) };
+  const sk = naSort || (g.k === 'queued' || g.k === 'screened' ? 'relevance' : 'new');
+  list = list.slice().sort(bySort[sk] || newest);
+  const can = g.k !== 'judged';
+  const total = groups.filter(x => x.k !== 'judged').reduce((n, x) => n + x.list.length, 0);
+  $('pending').innerHTML = `<h3 style="margin:0">Not analysed yet <span style="font-weight:400;color:var(--muted)">· ${total} sources</span></h3>
+    <div class="note" style="margin-top:4px">Every source found is kept. These have no in-depth analysis yet; open one to read it, and send the ones worth it to the analysis
+      (one GPT-6 Sol call each, about a minute; a source without text is downloaded first). Results and project summaries appear after a reload.</div>
+    <div class="tabs">${groups.map(x => `<button data-tab="${x.k}" class="${x.k === g.k ? 'on' : ''}">${esc(x.label)} (${x.list.length})</button>`).join('')}</div>
+    <div class="note" style="margin:0 0 8px">${esc(g.help)}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+      <input type="search" id="na-q" placeholder="Search these sources…" value="${esc(naQ)}" style="min-width:240px">
+      <select id="na-sort" title="Sort">${[['', 'Default order'], ['relevance', 'Screen relevance'], ['new', 'Newest first'], ['domain', 'Domain'], ['country', 'Country'], ['type', 'Source type']]
+        .map(([v, l]) => `<option value="${v}" ${naSort === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      ${can ? `<button class="btn-go" id="na-go" ${naSel.size ? '' : 'disabled'}>▶ Analyse selected (${naSel.size})</button><span class="note" id="na-msg" style="margin:0"></span>` : ''}</div>
+    ${list.length ? `<div style="overflow-x:auto"><table class="qt" style="min-width:900px">
+      <tr>${can ? `<th><input type="checkbox" id="na-all" title="select all shown"></th>` : ''}<th>Source</th><th>Text</th><th>Why not analysed</th><th>Deployment</th>${can ? '<th></th>' : ''}</tr>
+      ${list.slice(0, 300).map(r => `<tr>${can ? `<td><input type="checkbox" data-sel="${esc(r.sid)}" ${naSel.has(String(r.sid)) ? 'checked' : ''} ${naSent.has(String(r.sid)) ? 'disabled' : ''}></td>` : ''}
+        <td><a href="#" data-open="${esc(r.id)}">${esc(r.headline)}</a>
+          <div style="color:var(--muted);font-size:13px">${DOM ? '' : domChip(r) + ' '}${esc([r.country, SRC[r.sourceType] || r.sourceType, langName(r.lang), r.runId ? 'run ' + r.runId : '', r.via ? 'cascade' : ''].filter(Boolean).join(' · '))} · <a href="${esc(r.url)}" target="_blank" rel="noopener">open ↗</a></div></td>
+        <td>${esc(naText(r))}</td><td class="why">${esc(naWhy(r, g.k))}</td><td>${r.projectCode ? `<a href="#" data-pgoto="p${esc((projectOf[String(r.sid)] || {}).pid || '')}">${esc(r.projectCode)}</a> ${esc(r.projectName)}` : esc(r.projectGuess || '')}</td>
+        ${can ? `<td>${naSent.has(String(r.sid)) ? '<span class="ver ok">sent</span>' : `<button data-go="${esc(r.sid)}">${r.textChars >= 300 ? 'Analyse' : 'Download & analyse'}</button>`}</td>` : ''}</tr>`).join('')}</table></div>
+      ${list.length > 300 ? `<div class="note">Showing the first 300 of ${list.length}; narrow with the search.</div>` : ''}` : '<div class="na">Nothing here.</div>'}`;
+  const el = $('pending');
+  el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { naTab = b.dataset.tab; naSel.clear(); pendingSection(); });
+  $('na-sort').onchange = (e) => { naSort = e.target.value; pendingSection(); };
+  const qi = $('na-q'); qi.oninput = () => { naQ = qi.value; const pos = qi.selectionStart; pendingSection(); const n = $('na-q'); n.focus(); n.setSelectionRange(pos, pos); };
+  el.querySelectorAll('[data-open]').forEach(a => a.onclick = (e) => { e.preventDefault(); const r = rows.find(x => x.id === a.dataset.open); if (r) { detail(r); $('detail').scrollIntoView({ behavior: 'smooth', block: 'start' }); } });
+  el.querySelectorAll('[data-pgoto]').forEach(a => a.onclick = (e) => { e.preventDefault(); open_(a.dataset.pgoto); $('detail').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  el.querySelectorAll('[data-sel]').forEach(c => c.onchange = () => { c.checked ? naSel.add(c.dataset.sel) : naSel.delete(c.dataset.sel); pendingSection(); });
+  const all = $('na-all'); if (all) all.onchange = () => { list.slice(0, 300).forEach(r => { if (!naSent.has(String(r.sid))) all.checked ? naSel.add(String(r.sid)) : naSel.delete(String(r.sid)); }); pendingSection(); };
+  el.querySelectorAll('[data-go]').forEach(b => b.onclick = () => analyse([b.dataset.go]));
+  const go = $('na-go'); if (go) go.onclick = () => analyse([...naSel]);
+}
+function analyse(ids) {
+  ids = ids.filter(id => !naSent.has(String(id))).slice(0, 30);
+  if (!ids.length) return;
+  const msg = $('na-msg'); if (msg) msg.textContent = 'Sending…';
+  fetch(endpoint('ai4sg-analyse'), { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source_ids: ids.map(Number), reviewer: $('me').value.trim() }) })
+    .then(x => x.json()).then(res => {
+      if (!res.ok) throw new Error(res.error || 'not sent');
+      ids.forEach(id => { naSent.add(String(id)); naSel.delete(String(id)); });
+      pendingSection();
+      const m = $('na-msg'); if (m) m.textContent = `Sent ${res.sources} source${res.sources === 1 ? '' : 's'} to the analysis: reload in about ${Math.max(1, res.sources)} minute${res.sources === 1 ? '' : 's'}.`;
+    }).catch(e => { const m = $('na-msg'); if (m) m.textContent = 'Could not send (' + e.message + ').'; });
 }
 
 // ---------- list + filters ----------
 let selected = null;
-function render() {
-  const q = $('q').value.trim().toLowerCase(), fc = $('f-country').value, fd = $('f-domain').value, fs = $('f-status').value;
-  let list = rows.filter(r => (!fc || r.country === fc) && (!fd || r.domain === fd) &&
-    (fs === 'filtered' ? r.filtered : !r.filtered) &&
-    (!fs || fs === 'filtered' || (fs === 'attention' && r.attention) || (fs === 'clean' && !r.flags.length && !r.failed)) &&
-    (!q || [r.headline, r.titleEn, r.titleOrig, r.project.name, r.project.implementing_org, r.summary].join(' ').toLowerCase().includes(q)));
-  if ($('f-sort').value === 'conf') list = list.slice().sort((a, b) => (a.conf ?? 0) - (b.conf ?? 0));
-  $('count').textContent = fs === 'filtered' ? `${list.length} sources filtered out by the AI screen` : `${list.length} of ${review.length} results to review`;
-  $('list').innerHTML = list.map(r => `<div class="card item ${selected === String(r.id) ? 'sel' : ''}" data-id="${esc(r.id)}">
-      <h4>${esc(r.headline)}</h4>
+function sourceItem(r) {
+  return `<div class="card item ${selected === r.id ? 'sel' : ''}" data-id="${esc(r.id)}">
+      <div class="kind">Source${r.analysed && !r.filtered ? ' · not linked to a project' : ''}</div><h4>${esc(r.headline)}</h4>
       ${r.titleOrig && r.lang && r.lang !== 'en' ? `<div class="t2 orig" lang="${esc(r.lang)}">${esc(r.titleOrig)}</div>` : ''}
-      <div class="chips">${chips(r)}${r.flags.length ? `<span class="chip flag">⚠ ${r.flags.length} flag${r.flags.length > 1 ? 's' : ''}</span>` : ''}
-        ${r.filtered ? `<span class="chip flag">Filtered out${r.screen && r.screen.relevance != null ? ' · relevance ' + Math.round(100 * r.screen.relevance) + '%' : ''}</span>` : ''}${r.failed ? '<span class="chip flag bad">Failed</span>' : ''}</div>
-      <div class="meter" style="margin-top:6px">Confidence <span class="m"><i style="width:${Math.round(100 * (r.conf || 0))}%"></i></span>${r.conf != null ? Math.round(100 * r.conf) + '%' : '—'}</div>
-    </div>`).join('') || '<div class="empty">No results match these filters.</div>';
-  $('list').querySelectorAll('.item').forEach(el => el.onclick = () => { selected = el.dataset.id; render(); detail(rows.find(r => String(r.id) === selected)); });
+      <div class="chips">${domChip(r)}${chips(r)}${decisionChip(r)}${r.flags.length ? `<span class="chip flag">⚠ ${r.flags.length} flag${r.flags.length > 1 ? 's' : ''}</span>` : ''}
+        ${r.filtered ? `<span class="chip flag">Filtered out${r.screen && r.screen.relevance != null ? ' · screen ' + Math.round(100 * r.screen.relevance) + '%' : ''}</span>` : ''}${r.failed ? '<span class="chip flag bad">Failed</span>' : ''}
+        ${r.queued ? `<span class="chip">Queued${r.screen && r.screen.relevance != null ? ' · screen ' + Math.round(100 * r.screen.relevance) + '%' : ''}</span>` : ''}${r.notDownloaded ? '<span class="chip flag bad">Not downloaded</span>' : ''}</div>
+      ${!r.analysed || r.filtered ? '' : `<div class="meter" style="margin-top:8px">Relevance score <span class="m"><i style="width:${r.score || 0}%"></i></span>${r.score != null ? r.score + ' / 100' : 'not scored'}</div>`}
+    </div>`;
+}
+function projectItem(P) {
+  if (P.single && P.srcRows[0]) {   // one source: the item is the source itself; the decision is the project's
+    const r = P.srcRows[0];
+    return `<div class="card item ${selected === P.id ? 'sel' : ''}" data-id="${esc(P.id)}">
+      <div class="kind">${esc(P.code)} · ${esc(SRC[r.sourceType] || r.sourceType || 'source')}</div><h4>${esc(r.headline)}</h4>
+      ${r.titleOrig && r.lang && r.lang !== 'en' ? `<div class="t2 orig" lang="${esc(r.lang)}">${esc(r.titleOrig)}</div>` : ''}
+      <div class="chips">${domChip(P)}${[r.country, STAGE[r.stage], (EVID.find(e => e[0] === (r.evid.type || 'none')) || ['', ''])[1]].filter(Boolean).map(x => `<span class="chip">${esc(x)}</span>`).join('')}
+        ${decisionChip(r)}${r.flags.length ? `<span class="chip flag">⚠ ${r.flags.length} flag${r.flags.length > 1 ? 's' : ''}</span>` : ''}${r.failed ? '<span class="chip flag bad">Failed</span>' : ''}</div>
+      <div class="meter" style="margin-top:8px">Relevance score <span class="m"><i style="width:${r.score || 0}%"></i></span>${r.score != null ? r.score + ' / 100' : 'not scored'}</div>
+    </div>`;
+  }
+  const types = count(P.srcRows, r => SRC[r.sourceType] || r.sourceType);
+  return `<div class="card item ${selected === P.id ? 'sel' : ''}" data-id="${esc(P.id)}">
+      <div class="kind">Deployment ${esc(P.code)} · ${P.sids.length} source${P.sids.length > 1 ? 's' : ''}${Object.keys(types).length ? ': ' + esc(Object.entries(types).map(([k, n]) => `${n} ${k.toLowerCase()}`).join(', ')) : ''}</div>
+      <h4>${esc(P.name)}</h4>
+      ${P.llm && P.llm.summary ? `<div class="t2">${esc(String(P.llm.summary).replace(/\s?\[S\d+\]/g, '').split(/(?<=\.)\s/)[0].slice(0, 220))}</div>` : ''}
+      <div class="chips">${domChip(P)}${P.countries.map(c => `<span class="chip">${esc(c)}</span>`).join('')}<span class="chip">${esc(STAGE[P.stage] || P.stage)}</span>
+        <span class="chip">${esc((EVID.find(e => e[0] === P.evid) || ['', 'No evidence'])[1])}</span>${P.toolCode ? `<span class="chip">Tool: ${esc(P.toolName)}</span>` : ''}${reviewChip(P)}
+        ${P.flags.length ? `<span class="chip flag">⚠ ${P.flags.length} flag type${P.flags.length > 1 ? 's' : ''}</span>` : ''}${P.pending ? '<span class="chip">summary pending</span>' : ''}</div>
+      <div class="meter" style="margin-top:8px">Best source score <span class="m"><i style="width:${P.score || 0}%"></i></span>${P.score != null ? P.score + ' / 100' : 'not scored'}</div>
+    </div>`;
+}
+function render() {
+  const q = $('q').value.trim().toLowerCase(), fc = $('f-country').value, ft = $('f-tech').value, fs = $('f-status').value;
+  const sourceView = ['queued', 'filtered', 'notdl'].includes(fs);
+  let list;
+  if (sourceView) {
+    list = rowsD().filter(r => (fs === 'filtered' ? r.filtered : fs === 'queued' ? r.queued : r.notDownloaded) && (!fc || r.country === fc) &&
+      (!q || [r.headline, r.titleEn, r.titleOrig, r.summary, r.projectGuess].join(' ').toLowerCase().includes(q)));
+  } else {
+    const want = (x) => fs === 'all' || (fs === '' && !x.decision) || (fs === 'attention' && x.attention) || ((fs === 'approved' || fs === 'rejected') && x.decision === fs);
+    const ps = inScope().filter(P => (!fc || P.countries.includes(fc)) && (!ft || P.techCat === ft) && want(P) &&
+      (!q || [P.name, P.code, P.dbName, ...P.aliases, ...(P.sy.orgs || []), ...(P.sy.products || []), ...(P.sy.places || []).map(x => x.name), P.llm.summary,
+              ...P.srcRows.map(r => [r.headline, r.titleEn, r.titleOrig].join(' '))].join(' ').toLowerCase().includes(q)));
+    const ls = looseD().filter(r => (!fc || r.country === fc) && (!ft || r.techCat === ft) && want(r) &&
+      (!q || [r.headline, r.titleEn, r.titleOrig, r.summary].join(' ').toLowerCase().includes(q)));
+    list = [...ps, ...ls];
+  }
+  const sv = (x) => (x.score == null ? -1 : x.score);
+  const newest = (a, b) => String(b.created || '').localeCompare(String(a.created || ''));
+  const nameOf = (x) => String(x.kind === 'project' ? (x.single && x.srcRows[0] ? x.srcRows[0].headline : x.name) : x.headline || '');
+  const cmp = { hi: (a, b) => sv(b) - sv(a) || newest(a, b), lo: (a, b) => sv(a) - sv(b) || newest(a, b), new: newest, old: (a, b) => newest(b, a),
+    domain: (a, b) => domOf(a).localeCompare(domOf(b)) || newest(a, b),
+    country: (a, b) => String(a.country || '').localeCompare(String(b.country || '')) || newest(a, b),
+    name: (a, b) => nameOf(a).localeCompare(nameOf(b)) }[$('f-sort').value] || newest;
+  list = list.slice().sort(cmp);
+  const np = list.filter(x => x.kind === 'project').length;
+  $('count').textContent = fs === 'filtered' ? `${list.length} sources filtered out by the AI screen` : fs === 'queued' ? `${list.length} sources waiting for analysis`
+    : fs === 'notdl' ? `${list.length} sources that could not be downloaded` : `${np} project${np === 1 ? '' : 's'}${list.length > np ? ` and ${list.length - np} unlinked source${list.length - np === 1 ? '' : 's'}` : ''} shown`;
+  $('list').innerHTML = list.map(x => x.kind === 'project' ? projectItem(x) : sourceItem(x)).join('') || '<div class="empty">Nothing matches these filters.</div>';
+  $('list').querySelectorAll('.item').forEach(el => el.onclick = () => open_(el.dataset.id));
 }
 function fillSelect(el, values, label) { values.forEach(v => el.insertAdjacentHTML('beforeend', `<option value="${esc(v)}">${esc(label(v))}</option>`)); }
-fillSelect($('f-country'), [...new Set(rows.map(r => r.country).filter(Boolean))].sort(), v => v);
-fillSelect($('f-domain'), [...new Set(rows.map(r => r.domain).filter(Boolean))].sort(), v => DOMAIN[v] || v);
-['q', 'f-country', 'f-domain', 'f-status', 'f-sort'].forEach(id => $(id).addEventListener(id === 'q' ? 'input' : 'change', render));
-$('reset').onclick = () => { ['q', 'f-country', 'f-domain', 'f-status'].forEach(id => $(id).value = ''); $('f-sort').value = 'new'; render(); };
+fillSelect($('f-country'), [...new Set([...projects.flatMap(P => P.countries), ...rows.map(r => r.country)].filter(Boolean))].sort(), v => v);
+fillSelect($('f-tech'), [...new Set(inScope().map(P => P.techCat))].sort(), v => TECH[v] || v);
+['q', 'f-country', 'f-tech', 'f-status', 'f-sort'].forEach(id => $(id).addEventListener(id === 'q' ? 'input' : 'change', render));
+$('reset').onclick = () => { ['q', 'f-country', 'f-tech', 'f-status'].forEach(id => $(id).value = ''); $('f-sort').value = 'new'; render(); };
+$('me').value = store.get('ai4sg-reviewer');
+$('me').addEventListener('change', () => store.set('ai4sg-reviewer', $('me').value.trim()));
 
-kpis(); charts(); render();
-if (review.length) { selected = String(review[0].id); render(); detail(review[0]); }
+function domBar() {
+  const doms = Object.keys(RUNDOM).filter(k => rows.some(r => tagsOf(r).includes(k)) || RUNS_ALL.some(r => (r.domain || 'general') === k));
+  if (DOM && !doms.includes(DOM)) DOM = '';
+  const n = (k) => projects.filter(P => P.analysed && (!k || tagsOf(P).includes(k))).length;
+  $('dombar').innerHTML = doms.length < 2 && !DOM ? '' : `<span class="l">Domain</span>` +
+    [['', 'All domains'], ...doms.map(k => [k, RUNDOM[k] || k])].map(([k, l]) =>
+      `<button data-dom="${esc(k)}" class="${DOM === k ? 'on' : ''}" title="Show only this domain everywhere on the page">${esc(l)}<span class="n">${n(k)}</span></button>`).join('');
+  $('dombar').querySelectorAll('[data-dom]').forEach(b => b.onclick = () => { setDom(b.dataset.dom); });
+}
+function setDom(k) {
+  DOM = k; store.set('ai4sg-domain', k); naSel.clear();
+  domBar(); kpis(); charts(); render(); pendingSection();
+  const cur = selected && (projects.find(x => x.id === selected) || rows.find(x => x.id === selected));
+  if (!cur || !inD(cur)) { const f = inScope().find(P => !P.decision) || inScope()[0] || looseD()[0];
+    if (f) open_(f.id); else { selected = null; render(); $('detail').innerHTML = '<div class="empty">Nothing analysed in this domain yet.</div>'; } }
+}
+DOM = store.get('ai4sg-domain');
+domBar();
+kpis(); charts(); render(); pendingSection();
+const first = inScope().find(P => !P.decision) || inScope()[0];
+if (first) open_(first.id);
+else if (looseD()[0]) { selected = looseD()[0].id; render(); detail(looseD()[0]); }
+loadGeo();
 </script>
 </body>
 </html>

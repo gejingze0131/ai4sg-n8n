@@ -1,0 +1,674 @@
+# **Variables to extract**
+
+## **1. Study / Source**
+
+## **2. AI Tool / Program**
+
+## **3. Outcome Domain**
+
+**Definition:  
+**Standardized category describing the type of outcome measured.
+
+Use one of the following categories whenever possible.
+
+### **Adoption**
+
+Whether eligible users or organizations begin using the AI tool.
+
+Examples:
+
+- take-up rate,
+
+- activation rate,
+
+- share of schools adopting,
+
+- share of teachers starting use.
+
+**Keywords / cues:  
+**adopted, take-up, enrolled, activated, started using, participation rate
+
+### **Usage**
+
+How much, how often, or how long the AI tool is actually used after access/adoption.
+
+Examples:
+
+- sessions per week,
+
+- minutes used,
+
+- number of interactions,
+
+- attendance,
+
+- continued use,
+
+- retention.
+
+**Keywords / cues:  
+**usage, frequency, time on platform, sessions, attendance, logins, engagement, retention
+
+### **Learning**
+
+Changes in student knowledge, skills, test scores, grades, or academic performance.
+
+Examples:
+
+- mathematics test score,
+
+- language score,
+
+- course grade,
+
+- standardized learning outcome.
+
+**Keywords / cues:  
+**achievement, test score, learning gain, exam, grade, assessment score
+
+### **Engagement**
+
+Student participation, motivation, effort, interest, or interaction with learning.
+
+Examples:
+
+- motivation,
+
+- participation,
+
+- effort,
+
+- persistence,
+
+- engagement index.
+
+**Keywords / cues:  
+**engagement, motivation, participation, effort, interest
+
+### **Attendance**
+
+School or class attendance outcomes.
+
+Examples:
+
+- attendance rate,
+
+- absenteeism,
+
+- days present.
+
+**Keywords / cues:  
+**attendance, absenteeism, school days
+
+### **Dropout / Retention**
+
+Whether students remain in education, complete courses, or drop out.
+
+Examples:
+
+- dropout rate,
+
+- retention,
+
+- course completion,
+
+- persistence.
+
+**Keywords / cues:  
+**dropout, retention, completion, persistence, withdrawal
+
+### **Teacher Practice**
+
+Changes in teaching behavior or instructional practices.
+
+Examples:
+
+- questioning quality,
+
+- feedback practices,
+
+- lesson design,
+
+- use of student ideas.
+
+**Keywords / cues:  
+**teacher behavior, instructional practice, questioning, feedback, pedagogy
+
+### **Teacher Productivity**
+
+Changes in teacher time, workload, output, or efficiency.
+
+Examples:
+
+- lesson preparation time,
+
+- grading time,
+
+- students served per teacher.
+
+**Keywords / cues:  
+**time saved, workload, productivity, efficiency, preparation time
+
+### **Access**
+
+Whether the intervention increases access to education, tutoring, feedback, or educational services.
+
+Examples:
+
+- number of students reached,
+
+- access to tutoring,
+
+- access in rural areas.
+
+**Keywords / cues:  
+**access, reach, coverage, availability, underserved
+
+### **Equity**
+
+Differences in adoption, usage, or outcomes across groups.
+
+Examples:
+
+- low-income vs high-income students,
+
+- girls vs boys,
+
+- rural vs urban,
+
+- low-performing vs high-performing students.
+
+**Keywords / cues:  
+**heterogeneous effects, subgroup, disadvantaged, equity, inequality
+
+### **Inclusion / Accessibility**
+
+Outcomes specifically related to disability, special educational needs, language access, or inclusion.
+
+Examples:
+
+- accessibility outcomes,
+
+- achievement among students with disabilities,
+
+- use by special-needs learners.
+
+**Keywords / cues:  
+**disability, special education, accessibility, inclusive, SEN
+
+### **Administrative**
+
+Changes in school or education-system operations.
+
+Examples:
+
+- processing time,
+
+- prediction accuracy,
+
+- administrative workload,
+
+- resource allocation,
+
+- targeting.
+
+**Keywords / cues:  
+**administrative efficiency, processing, allocation, targeting, prediction
+
+### **Other**
+
+Use only when none of the above categories fit.
+
+Explain clearly in the outcome name.
+
+## **4. Outcome Name**
+
+**Definition:  
+**Specific variable or result being measured.
+
+The name should be more precise than the outcome domain.
+
+**Examples:**
+
+- Mathematics achievement
+
+- Hindi achievement
+
+- Program attendance
+
+- AI-tool take-up
+
+- Teacher questioning quality
+
+- Student dropout
+
+- Weekly AI usage
+
+- Lesson preparation time
+
+**Keywords / cues:  
+**dependent variable, primary outcome, secondary outcome, endpoint, measure
+
+## **5. Outcome Measure**
+
+**Definition:  
+**How the outcome was operationalized or measured.
+
+**Examples:**
+
+- standardized mathematics test score,
+
+- percentage of available program days attended,
+
+- number of AI sessions per week,
+
+- administrative dropout record,
+
+- teacher observation score,
+
+- self-reported motivation scale.
+
+Be concise.
+
+**Keywords / cues:  
+**measured using, constructed from, standardized score, survey scale, administrative records
+
+## **6. Population / Sample for Outcome**
+
+**Definition:  
+**The group for whom this particular outcome was measured.
+
+This can differ from the overall study sample.
+
+**Examples:**
+
+- all randomized students,
+
+- treatment students only,
+
+- teachers,
+
+- students who used the AI tool,
+
+- Grade 7 students,
+
+- low-performing subgroup.
+
+**Keywords / cues:  
+**analysis sample, respondents, subgroup, treatment users, teachers
+
+## **7. Comparison**
+
+**Definition:  
+**What the reported result is compared against.
+
+**Possible answers:**
+
+- Treatment vs control
+
+- Treatment A vs Treatment B
+
+- AI vs human tutoring
+
+- AI vs business-as-usual
+
+- Before vs after
+
+- Users vs non-users
+
+- High usage vs low usage
+
+- Subgroup A vs subgroup B
+
+- No comparison / descriptive outcome
+
+**Example:  
+**Students offered Mindspark vs control students not offered free Mindspark access.
+
+**Keywords / cues:  
+**compared with, relative to, control, baseline, difference, treatment effect
+
+## **8. Result Value**
+
+**Definition:  
+**Main numerical estimate reported for the outcome.
+
+Record the number only where practical.
+
+**Examples:**
+
+- 0.37
+
+- 23
+
+- 58
+
+- 50
+
+- -0.17
+
+Do not include units in this field.
+
+If several estimates are reported, use the principal specification and explain alternatives in Result Notes.
+
+**Keywords / cues:  
+**coefficient, effect, treatment effect, estimate, mean difference
+
+## **9. Result Unit**
+
+**Definition:  
+**Unit corresponding to the result value.
+
+**Possible answers:**
+
+- SD
+
+- percentage points
+
+- percent
+
+- score points
+
+- days
+
+- minutes
+
+- sessions/week
+
+- proportion
+
+- odds ratio
+
+- index points
+
+- currency
+
+- other
+
+**Example:  
+**SD
+
+Do not confuse percentage points with percent.
+
+## **10. Result Interpretation**
+
+**Definition:  
+**Short plain-language description of the quantitative result.
+
+**Example:  
+**Students offered Mindspark scored 0.37 standard deviations higher in mathematics than control students.
+
+Keep this factual and concise.
+
+Do not add causal interpretation beyond what the study design and authors support.
+
+## **11. Standard Error / Confidence Interval**
+
+**Definition:  
+**Uncertainty measure reported with the estimate.
+
+**Intended answer:  
+**Report either:
+
+- standard error,
+
+- confidence interval,
+
+- or both if available.
+
+**Examples:**
+
+- SE = 0.07
+
+- 95% CI: 0.12 to 0.32
+
+If not reported:  
+**NR**
+
+**Keywords / cues:  
+**standard error, SE, confidence interval, CI
+
+## **12. P-value / Statistical Significance**
+
+**Definition:  
+**Reported p-value or significance information.
+
+**Intended answer:  
+**Prefer exact p-value where available.
+
+Examples:
+
+- p = 0.03
+
+- p \< 0.01
+
+- statistically significant at 5%
+
+- not statistically significant
+
+If significance is shown only through stars, report the implied threshold if clearly defined by the paper.
+
+**Keywords / cues:  
+**p-value, significance, \*, \*\*, \*\*\*
+
+## **13. Measurement Timing**
+
+**Definition:  
+**When the outcome was measured relative to the intervention.
+
+**Possible answers:**
+
+- Endline after 6 weeks
+
+- Endline after 4.5 months
+
+- End of academic year
+
+- Immediately after intervention
+
+- 3-month follow-up
+
+- 1-year follow-up
+
+**Keywords / cues:  
+**endline, follow-up, post-treatment, after intervention, months later
+
+## **14. Subgroup**
+
+**Definition:  
+**Whether the reported outcome applies to a specific subgroup rather than the full sample.
+
+**Possible answers:**
+
+- Full sample
+
+- Low-performing students
+
+- Girls
+
+- Boys
+
+- Rural students
+
+- Grade 8
+
+- Free-school-meal students
+
+- Low-rated tutors
+
+- Other
+
+If full sample:  
+**Full sample**
+
+**Keywords / cues:  
+**heterogeneous effects, subgroup, by gender, by baseline achievement, disadvantaged
+
+## **15. Actual vs Intended Usage**
+
+Use this field **only for Adoption or Usage outcomes**.
+
+**Definition:  
+**Clarifies whether the result refers to:
+
+- planned access,
+
+- initial adoption,
+
+- actual use,
+
+- sustained use.
+
+**Possible answers:**
+
+- Offered access
+
+- Activated tool
+
+- Used at least once
+
+- Repeat use
+
+- Average usage
+
+- Sustained usage
+
+- Attendance/compliance
+
+**Example:  
+**Attendance/compliance: students attended approximately 58% of available program days.
+
+This field is useful because "offered access" is not the same as "actually used."
+
+## **16. Result Notes**
+
+**Definition:  
+**Short clarification needed to interpret the outcome correctly.
+
+Use for:
+
+- alternative specifications,
+
+- important denominator definitions,
+
+- multiple related estimates,
+
+- whether result is ITT or treatment-on-treated,
+
+- whether result comes from logs or self-reports,
+
+- any ambiguity.
+
+**Example:  
+**0.37 SD is the intent-to-treat estimate; IV estimates based on attendance are larger.
+
+Do not use this field for general paper commentary.
+
+# **Special coding rules**
+
+## **Adoption vs Usage**
+
+Do not combine them automatically.
+
+**Adoption** answers:
+
+> Did the intended user begin using the tool?
+
+**Usage** answers:
+
+> How much or how often did the user actually use it?
+
+Example:
+
+- 96% tried Khanmigo → Adoption
+
+- Median student used Khanmigo on one-third of practice days → Usage
+
+## **Access vs Usage**
+
+Do not treat being offered access as actual usage.
+
+Example:
+
+- 500 students received accounts → access
+
+- 350 students logged in → adoption
+
+- average 2.1 sessions/week → usage
+
+## **Performance vs Learning**
+
+If AI helps students perform better while the tool is available, but the study separately measures later unaided learning, record them as separate outcomes.
+
+Example:
+
+- AI-assisted exercise performance → separate outcome
+
+- later unaided test score → Learning
+
+## **Prediction accuracy**
+
+If an AI system predicts dropout risk accurately, record prediction accuracy as an Administrative or Other outcome.
+
+Do not treat prediction accuracy as equivalent to reduced dropout.
+
+If the study also measures actual dropout, create a separate Dropout / Retention outcome row.
+
+## **Multiple subjects**
+
+If a study separately reports mathematics and language outcomes, create separate rows.
+
+Example:
+
+| **Outcome Domain** | **Outcome Name**        |
+|--------------------|-------------------------|
+| Learning           | Mathematics achievement |
+| Learning           | Hindi achievement       |
+
+## **Multiple time periods**
+
+If the same outcome is measured immediately and at longer follow-up, create separate rows when the distinction is important.
+
+Example:
+
+- Mathematics score at endline
+
+- Mathematics score at 12-month follow-up
+
+# **Output format**
+
+Return one table with **one row per distinct outcome**.
+
+Study / Source
+
+AI Tool / Program
+
+Outcome Domain
+
+Outcome Name
+
+Outcome Measure
+
+Population / Sample for Outcome
+
+Comparison
+
+Result Value
+
+Result Unit
+
+Result Interpretation
+
+Standard Error / Confidence Interval
+
+P-value / Statistical Significance
+
+Measurement Timing
+
+Subgroup
+
+Actual vs Intended Usage
+
+Result Notes
+
+Do not merge several substantively different outcomes into one row.

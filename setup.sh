@@ -26,6 +26,7 @@ grep -q "^OPENAI_API_KEY=" .env || printf '\nOPENAI_API_KEY=\nOPENAI_BASE_URL=ht
 grep -q "^AI4SG_PAGE_USER=" .env || printf '\nAI4SG_PAGE_USER=ai4sg\n' >> .env
 grep -q "^AI4SG_PAGE_PASSWORD=" .env || printf 'AI4SG_PAGE_PASSWORD=CHANGE_ME\n' >> .env
 grep -q "^PUBLIC_URL=" .env || printf 'PUBLIC_URL=\n' >> .env
+grep -q "^OPENALEX_API_KEY=" .env || printf '\n# free key from openalex.org (Settings > API): 10x the daily search budget of anonymous use\nOPENALEX_API_KEY=\n' >> .env
 if grep -q "^AI4SG_PAGE_PASSWORD=CHANGE_ME" .env; then   # short enough to type, 12 random characters
   sed "s|^AI4SG_PAGE_PASSWORD=CHANGE_ME.*|AI4SG_PAGE_PASSWORD=$(openssl rand -hex 6)|" .env > .env.tmp && mv .env.tmp .env
 fi
@@ -63,7 +64,9 @@ done
 
 # ---------- 4. n8n ----------
 say "Starting n8n ${N8N_VERSION} (first start runs database migrations and can take a few minutes)"
-docker compose up -d
+say "Building the Codex search runner if needed (first time: a few minutes)"
+mkdir -p codex-runs library   # Codex search transcripts; downloaded sources (mounted into codex-runner)
+docker compose up -d --build
 docker compose restart n8n >/dev/null   # in case it was stuck retrying with a missing database user
 for i in $(seq 1 150); do
   curl -fsS "http://localhost:5678/healthz" >/dev/null 2>&1 && break
@@ -74,7 +77,7 @@ done
 # ---------- 5. credentials + workflows ----------
 # Published = always on. B and C must be published to be callable; D serves the audit page;
 # A is published so its run page has a fixed address (a run only starts when someone submits that page).
-PUBLISH_IDS="ai4sgPipeline001 ai4sgSearchAgt01 ai4sgExtract0001 ai4sgAuditPage01"
+PUBLISH_IDS="ai4sgCollScrn001 ai4sgPickExtr001 ai4sgPipeline001 ai4sgSearchAgt01 ai4sgScreen00001 ai4sgExtract0001 ai4sgProjSynth01 ai4sgProjClean01 ai4sgAuditPage01"
 if [ -f .setup-done ] && [ "${1:-}" != "--reimport" ]; then
   say "Workflows already imported (run ./setup.sh --reimport to overwrite them)."
 else
@@ -112,7 +115,6 @@ cat <<EOF
   n8n editor : $BASE   (first visit: create the owner account)
   Run page   : $BASE/form/ai4sg-run
   Audit page : $BASE/webhook/ai4sg-audit
-  Page login : user "$AI4SG_PAGE_USER", password "$AI4SG_PAGE_PASSWORD"   (run page and audit page; stored in .env)
   Skills     : ./skills/search/SKILL.md, ./skills/extraction/SKILL.md (+ examples/). Edits apply on the next run.
 
   To run: open the run page, choose countries, source types and limits, click "Start run".

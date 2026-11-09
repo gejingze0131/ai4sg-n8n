@@ -1,0 +1,553 @@
+Education search and background extraction
+Literature search and structured evidence extraction on AI for Social Good (AI4SG) tools in
+the education sector in Bangladesh, India, Indonesia and Thailand.
+
+
+1. Objective
+Identify relevant empirical studies, evaluations, conference papers, working papers, government
+reports, and credible institutional reports on AI-enabled agricultural tools that have been
+actually tested, deployed, implemented, or used in the education sector in Bangladesh,
+India, Indonesia, or Thailand.
+Geographic scope: a source is eligible if the AI tool was tested or used in at least one of the four
+countries. Multi-country studies are eligible only if results, sample sizes, or implementation
+details for at least one of the four countries are reported separately; extract only the
+country-specific information.
+
+The purpose is to extract factual information that can later be used for analysis of:
+
+   ●​    intervention
+   ●​    adoption
+   ●​    effectiveness
+   ●​    implementation
+   ●​    deployment
+   ●​    scaling
+   ●​    cost
+   ●​    financing
+
+Focus on collecting accurate and comparable information across studies.
+
+
+
+
+2. Definition of AI4SG in education
+For this review, define AI4SG in education as:
+
+        The use of AI-enabled systems to address socially important educational problems
+        by improving learning, access, equity, inclusion, teaching capacity, or the efficiency
+        and quality of education delivery, especially where students, teachers, schools, or
+        education systems face resource, capacity, or access constraints.
+
+Do not require the paper itself to use the term "AI for Social Good."
+Include an application when:
+
+   1.​ AI is a substantive component of the tool or service;
+   2.​ the application addresses an educational problem; and
+   3.​ the intended outcome concerns learning, access, equity, inclusion, teaching capacity,
+       affordability, or education-system performance.
+
+
+
+
+3. AI applications to include
+Include, where relevant:
+
+   ●​   intelligent tutoring systems
+   ●​   personalized adaptive learning
+   ●​   adaptive learning platforms
+   ●​   generative-AI or LLM tutors
+   ●​   educational chatbots
+   ●​   teacher copilots
+   ●​   AI-assisted teacher support
+   ●​   automated feedback
+   ●​   automated assessment
+   ●​   AI-supported formative assessment
+   ●​   dropout or learning-risk prediction
+   ●​   early-warning systems
+   ●​   AI for accessibility or special education
+   ●​   AI translation or language-learning systems
+   ●​   AI-supported education administration
+   ●​   AI-supported public-service delivery in education
+
+Older systems may be included if adaptive algorithms, learner modelling, prediction, NLP,
+automated personalization, or automated feedback are substantive components.
+
+Exclude ordinary digital education tools where AI is not a substantive component.
+
+
+
+
+4. Type of evidence to prioritize
+Prioritize sources that contain information on real interventions or real deployments,
+including:
+
+   ●​ randomized trials
+   ●​ field experiments
+    ●​   quasi-experimental evaluations
+    ●​   implementation studies
+    ●​   deployment evaluations
+    ●​   scaling studies
+    ●​   observational studies using actual usage data
+    ●​   government evaluations
+    ●​   international-organization reports
+    ●​   credible program evaluations
+    ●​   implementation reports
+    ●​   cost or financing reports
+
+Do not prioritize:
+
+    ●​   opinion pieces
+    ●​   purely conceptual papers
+    ●​   general discussions of AI in education
+    ●​   attitude-only studies
+    ●​   intention-to-use surveys without actual usage data
+    ●​   purely technical machine-learning papers without real educational deployment
+    ●​   papers where AI is used only for generic convenience
+
+
+
+
+5. Search approach
+Search broadly using combinations of terms such as:
+
+AI terms
+
+"artificial intelligence"​
+"generative AI"​
+"large language model"​
+"AI tutor"​
+"intelligent tutoring system"​
+"adaptive learning"​
+"personalized learning"​
+"personalized adaptive learning"​
+"educational chatbot"​
+"teacher copilot"​
+"automated feedback"​
+"automated assessment"​
+"early warning system"​
+"learning analytics"​
+"machine learning"
+Education terms
+
+education​
+school​
+student​
+teacher​
+classroom​
+learning​
+primary school​
+secondary school​
+higher education​
+public school
+
+Evidence terms
+
+intervention​
+trial​
+experiment​
+evaluation​
+implementation​
+adoption​
+usage​
+deployment​
+scale​
+scaling​
+cost​
+cost-effectiveness​
+financing​
+procurement​
+government adoption
+
+For highly relevant programs, also search the program or tool name directly to locate
+additional studies or implementation reports.
+
+Where possible, connect multiple sources referring to the same AI tool or program.
+
+
+
+6. Unit of Analysis and Cross-Source Linking
+
+Use the AI intervention or deployment as the main unit of analysis, rather than the individual
+paper or source.
+A single AI tool may be used in multiple interventions or deployments, while multiple sources
+may describe the same intervention or deployment. Assign unique IDs to identify these entities
+and link related evidence across sources.
+
+Assign three types of IDs:
+
+   ●​ Tool ID: Identifies a distinct AI tool or system. Retain the same Tool ID when the tool is
+      used across different interventions or deployments.
+   ●​ Intervention ID: Identifies a distinct intervention or real-world deployment of an AI tool.
+      Assign a new ID when the intervention design, intended application, or deployment
+      setting differs materially.
+   ●​ Source ID: Identifies each distinct paper, report, government document, webpage, or
+      other source.
+
+Cross-source identification and linking:
+
+   ●​ Before assigning a new ID, check whether the AI tool or intervention has already been
+      identified.
+   ●​ Use tool/programme names, providers, implementing organizations, locations,
+      implementation periods, target populations, and intervention designs to identify related
+      records.
+   ●​ When multiple sources describe the same intervention or deployment, retain the same
+      Intervention ID and link all relevant Source IDs.
+   ●​ When the same AI tool is used in different interventions or deployments, assign separate
+      Intervention IDs while retaining the common Tool ID.
+   ●​ Combine complementary information across related sources, including effectiveness,
+      adoption, costs, implementation, financing, and scaling, while preserving the original
+      source of each finding.
+   ●​ Do not double-count the same intervention or outcome simply because it appears in
+      multiple sources. Check whether different publications report the same underlying
+      evaluation, sample, or results.
+   ●​ If it is unclear whether two sources describe the same intervention, flag the relationship
+      for verification rather than automatically merging the records.
+
+Recording rule: Maintain one main extraction record per distinct intervention/deployment,
+linked to its Tool ID, Intervention ID, and all relevant Source IDs.
+
+
+
+
+7. Information to extract
+For every relevant intervention, extract only information that is directly useful for later analysis.
+A. Source information
+
+   ●​   Full citation
+   ●​   Authors
+   ●​   Year
+   ●​   Paper/report title
+   ●​   Journal or institution
+   ●​   DOI
+   ●​   Official URL
+   ●​   Publication type
+
+B. Context
+
+   ●​ Country
+   ●​ Region or city, if reported
+   ●​ Country income level (World Bank classification for the study year, if the study year is not
+      specified, use classification for the current year, and with a note)
+   ●​ Urban / rural / mixed
+   ●​ Public / private education setting
+   ●​ Education level
+   ●​ Subject area
+   ●​ Target population
+   ●​ Age or grade
+   ●​ Number of students
+   ●​ Number of teachers
+   ●​ Number of schools
+   ●​ Other relevant sample characteristics
+
+C. Educational problem
+
+Record the main problem the AI tool is intended to address.
+
+Examples:
+
+   ●​   low learning outcomes
+   ●​   students below grade level
+   ●​   teacher shortage
+   ●​   limited teacher expertise
+   ●​   high student-teacher ratio
+   ●​   lack of individualized feedback
+   ●​   dropout
+   ●​   low attendance
+   ●​   limited educational access
+   ●​   language barriers
+   ●​   disability-related barriers
+   ●​ weak assessment capacity
+   ●​ administrative inefficiency
+
+Use the authors' description where possible.
+
+D. AI application
+
+Extract:
+
+   ●​   AI tool / program name
+   ●​   Provider / developer
+   ●​   AI application category
+   ●​   Technology type
+   ●​   Main function of the AI
+   ●​   Primary user:
+            ○​ student
+            ○​ teacher
+            ○​ tutor
+            ○​ administrator
+            ○​ policymaker
+            ○​ other
+
+Application categories may include:
+
+   ●​   student tutoring / personalized learning
+   ●​   teacher support
+   ●​   tutor support
+   ●​   assessment
+   ●​   feedback
+   ●​   prediction / early warning
+   ●​   accessibility
+   ●​   language / translation
+   ●​   administration / system management
+
+E. Intervention design
+
+Extract:
+
+   ●​   What exactly was introduced?
+   ●​   Who received the intervention?
+   ●​   What did users do with the AI?
+   ●​   What role did teachers or other humans play?
+   ●​   Did AI:
+           ○​ replace instruction
+           ○​ supplement instruction
+            ○​ support a teacher/tutor
+            ○​ provide feedback
+            ○​ make predictions
+            ○​ support administration
+   ●​   Duration
+   ●​   Frequency
+   ●​   Session length
+   ●​   Intensity
+   ●​   Location of use
+   ●​   Control/comparison condition, if applicable
+
+H. Implementation
+Implementation Facilitators = factors that helped the organization deliver the intervention as
+intended.
+
+Extract concrete information on:
+
+   ●​   teacher training
+   ●​   staff training
+   ●​   technical support
+   ●​   monitoring
+   ●​   implementation staff
+   ●​   implementation fidelity
+   ●​   incentives
+   ●​   teacher involvement
+   ●​   human-AI interaction
+   ●​   workflow integration
+   ●​   organizational requirements
+   ●​   digital literacy
+   ●​   technical difficulties
+   ●​   resistance
+   ●​   trust
+   ●​   privacy concerns
+   ●​   data requirements
+   ●​   internet problems
+   ●​   electricity problems
+   ●​   device constraints
+   ●​   other implementation barriers
+   ●​   implementation facilitators
+
+I. Deployment
+
+Extract:
+   ●​   school / home / community / remote
+   ●​   classroom / computer lab / individual device
+   ●​   smartphone
+   ●​   tablet
+   ●​   laptop
+   ●​   desktop
+   ●​   basic mobile phone
+   ●​   SMS
+   ●​   WhatsApp
+   ●​   web platform
+   ●​   mobile app
+   ●​   internet requirement
+   ●​   offline capability
+   ●​   electricity requirement
+   ●​   language
+   ●​   localization
+   ●​   curriculum alignment
+   ●​   integration with existing school systems
+   ●​   integration with government systems
+   ●​
+
+J. Scaling
+
+Extract factual information on:
+
+   ●​   initial pilot size
+   ●​   later deployment size
+   ●​   number of students
+   ●​   number of teachers
+   ●​   number of schools
+   ●​   number of districts
+   ●​   number of regions
+   ●​   geographic expansion
+   ●​   expansion over time
+   ●​   whether government adopted the tool
+   ●​   whether the tool was integrated into public schools
+   ●​   institutionalization
+   ●​   procurement
+   ●​   modifications made when scaling
+   ●​   staffing changes
+   ●​   infrastructure changes
+   ●​   operational requirements at scale
+
+Do not label something "scaled" only because the authors describe it as scalable. Record actual
+deployment numbers where possible.
+K. Cost
+
+Extract:
+
+   ●​   total program cost
+   ●​   cost per student
+   ●​   cost per teacher
+   ●​   cost per school
+   ●​   cost per user
+   ●​   marginal cost
+   ●​   fixed cost
+   ●​   software cost
+   ●​   hardware/device cost
+   ●​   connectivity cost
+   ●​   training cost
+   ●​   staffing cost
+   ●​   technical-support cost
+   ●​   infrastructure cost
+   ●​   cost-effectiveness measure
+   ●​   period over which cost is calculated
+   ●​   currency
+   ●​   year of cost estimate
+
+Do not combine marginal cost with total cost.
+
+L. Financing
+
+Extract:
+
+   ●​   who paid for development
+   ●​   who paid for the pilot
+   ●​   who paid for implementation
+   ●​   who paid for scale-up
+   ●​   government funding
+   ●​   school funding
+   ●​   household/user fees
+   ●​   donor funding
+   ●​   philanthropy
+   ●​   NGO funding
+   ●​   development-bank funding
+   ●​   private investment
+   ●​   subscription
+   ●​   procurement
+   ●​   grant funding
+   ●​   public-private partnership
+    ●​   results-based financing
+    ●​   outcome-based financing
+    ●​   development impact bond
+    ●​   other financing mechanism
+
+When possible, distinguish:
+
+    ●​   research funding
+    ●​   pilot financing
+    ●​   operating financing
+    ●​   scale-up financing
+
+Do not infer a financing source unless explicitly stated.
+
+
+
+
+8. Missing information
+Do not guess.
+
+If a field is unavailable, record:
+
+Not reported
+
+If information was searched for but could not be verified, record:
+
+Not verified
+
+Do not infer values from surrounding information.
+
+
+
+
+9. Output format
+Produce a structured evidence table. Use one row per intervention/deployment, not necessarily
+one row per paper.
+For each source, produce two separate sheets. Sheet 1 (General sheet) contains the following
+columns; Sheet 2 (Outcome sheet) follows the Education Intervention Outcome Extraction Rule.
+Use matching Study / Source and AI Tool labels to link the sheets, and distinguish multiple
+deployments in those labels where needed.
+
+    1.​ Tool ID
+    2.​ Intervention ID
+    3.​ Source ID(s)
+    4.​ Short Citation
+   5.​ Year
+   6.​ Country and City
+   7.​ Country Income Level
+   8.​ Publication Type
+   9.​ Study Design
+   10.​AI Tool
+   11.​AI Function Category
+   12.​AI Function Description
+   13.​Primary User
+   14.​Educational Problem
+   15.​Education Level
+   16.​Targeted Population of Intervention
+   17.​Sample Size
+   18.​Implementing Organization
+   19.​Treatment Condition
+   20.​Control Condition
+   21.​Teacher / Tutor Involvement
+   22.​Duration
+   23.​Frequency / Intensity
+   24.​Implementation Requirements
+   25.​Implementation Barriers
+   26.​Implementation Facilitators
+   27.​Deployment Model
+   28.​Device / Infrastructure
+   29.​Language / Localization
+   30.​Deployment Stage
+   31.​Scaling Information
+   32.​Government Involvement
+   33.​Cost Information
+   34.​Financing Source
+   35.​Financing Mechanism
+   36.​Full citation
+   37.​Official source URL
+
+Keep each cell concise but information-rich.
+
+Where one source provides several relevant quantitative results, include the main results rather
+than summarizing them only as "positive" or "negative."
+
+
+
+
+10. Final output requirements
+The main output should be a clean, verified evidence database that can later be used for
+cross-study analysis.
+
+The goal is:
+
+      To collect comparable factual information on how AI education tools are
+      designed, adopted, implemented, deployed, used, scaled, funded, and
+      associated with educational outcomes.
+
+
+
+
+​       ​      ​      ​     ​
+
+​       ​      ​     ​
+
+​      ​       ​
+
+​      ​       ​     ​      ​      ​
+
+​      ​
+
+​       ​      ​     ​      ​
+
+​      ​       ​
+
+​      ​
+
+​
+

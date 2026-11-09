@@ -1,0 +1,133 @@
+{
+  "id": "ai4sgProjClean01",
+  "name": "AI4SG · ③ Project Summaries",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## ③ Project Summaries (stage 3 of a run, and after an analysis started from the audit page)\nRemoves deployments and tools left without sources, then summarises (C3) every deployment whose summary is missing or older than its newest source or extraction. Grouping sources into deployments and tools, and finding duplicates, now happens before the analysis (stage ②, the organiser); reviewers correct it on the audit page (move a source, merge two deployments).",
+        "width": 1300,
+        "height": 170
+      },
+      "id": "50ea63bd-ab4f-5ad2-8f95-b8e418813851",
+      "name": "Note · title",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "since"
+            }
+          ]
+        }
+      },
+      "id": "f4f60a03-eb78-517d-afef-cf1514f168b2",
+      "name": "After a Run",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM ai_projects p WHERE NOT EXISTS (SELECT 1 FROM source_projects sp WHERE sp.project_id = p.id);\nDELETE FROM ai_tools t WHERE NOT EXISTS (SELECT 1 FROM ai_projects p WHERE p.tool_id = t.id);\nSELECT p.id AS project_id FROM ai_projects p\nWHERE p.synthesis IS NULL\n   OR EXISTS (SELECT 1 FROM source_projects sp LEFT JOIN extractions e ON e.source_id = sp.source_id\n              WHERE sp.project_id = p.id AND GREATEST(sp.created_at, e.created_at) > (p.synthesis->>'built_at')::timestamptz)\nORDER BY p.id",
+        "options": {}
+      },
+      "id": "8ad3154a-2f26-5e2a-853b-0a1ab790e78c",
+      "name": "Stale Summaries",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        240,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "ai4sgProjSynth01"
+        },
+        "mode": "each",
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "project_id": "={{ $json.project_id }}"
+          },
+          "schema": [
+            {
+              "id": "project_id",
+              "displayName": "project_id",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "cedcce61-c083-54b1-a2b4-b36d3a5c5606",
+      "name": "Summarise Projects",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        480,
+        40
+      ],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "After a Run": {
+      "main": [
+        [
+          {
+            "node": "Stale Summaries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stale Summaries": {
+      "main": [
+        [
+          {
+            "node": "Summarise Projects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Singapore"
+  },
+  "tags": []
+}

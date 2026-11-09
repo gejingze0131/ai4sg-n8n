@@ -1,0 +1,405 @@
+{
+  "id": "ai4sgScreen00001",
+  "name": "AI4SG · C1 Screen",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## C1 · Screen (every new source, cheap model)\nCalled once per source that was downloaded into the library. Reads the text from the library (no second download) and applies the Search Skill's definition of AI for Social Good, plus the domain module of the run. Records **passed** (waits for the in-depth analysis, *queued* on the audit page) or **filtered out**, with the reason, the relevance and the project the source is about (used to put new projects first).",
+        "width": 1900,
+        "height": 170
+      },
+      "id": "1996af4d-4740-5a52-b5b6-f1c211bdb2c1",
+      "name": "Note · title",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -420
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 🧑‍🔬 Skills in\n`skills/search/SKILL.md`: definition of AI4SG.\n\n`skills/domains/<domain>.md`: what counts in the run's domain.",
+        "width": 500,
+        "height": 220,
+        "color": 4
+      },
+      "id": "1be21e75-42a7-5216-8358-204029546b63",
+      "name": "Skill in",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        -230
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "source_id"
+            },
+            {
+              "name": "domain"
+            },
+            {
+              "name": "min_relevance"
+            }
+          ]
+        }
+      },
+      "id": "8f4927a4-0f92-5f56-96c0-2129127a5f79",
+      "name": "Source to Process",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "/skills/{search/SKILL.md,domains/*.md}",
+        "options": {}
+      },
+      "id": "1eb3d1d1-64d9-5861-afe0-67aff93476a6",
+      "name": "Load Skills",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        240,
+        40
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {}
+      },
+      "id": "997a2d96-3457-5787-9f9d-fa90eead3eb6",
+      "name": "Files to Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        460,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- the source, and the deployment the organiser (stage ②) or a reviewer placed it in, with its tool and its other sources\nSELECT s.id, s.url, s.title, s.title_en, s.country, s.language, s.source_type, s.why_relevant, s.project_guess, s.domain, s.screen, s.text_chars,\n       p.id AS placed_project_id, p.code AS placed_code, p.name AS placed_name, p.implementing_org AS placed_org, p.countries AS placed_countries,\n       p.deployment AS placed_deployment, sp.method AS placed_by, sp.reason AS placed_reason, t.code AS tool_code, t.name AS tool_name,\n       t.developer AS tool_developer,\n       (SELECT COALESCE(jsonb_agg(jsonb_build_object('sid', o.id, 'title', COALESCE(o.screen->>'headline_en', o.title_en, o.title),\n                                                     'type', o.source_type) ORDER BY o.id), '[]'::jsonb)\n        FROM source_projects osp JOIN sources o ON o.id = osp.source_id\n        WHERE osp.project_id = p.id AND o.id <> s.id AND o.status <> 'duplicate') AS placed_others\nFROM sources s\nLEFT JOIN source_projects sp ON sp.source_id = s.id AND sp.method IN ('organised', 'manual', 'merged', 'duplicate')\nLEFT JOIN ai_projects p ON p.id = sp.project_id\nLEFT JOIN ai_tools t ON t.id = p.tool_id\nWHERE s.id = $1",
+        "options": {
+          "queryReplacement": "={{ [ $('Source to Process').first().json.source_id ] }}"
+        }
+      },
+      "id": "bb5fd412-ab8a-5e26-91cd-48cfaaa7637a",
+      "name": "Load Source",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        680,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "url": "={{ 'http://codex-runner:8787/library/' + $('Load Source').first().json.id + '/text' }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "outputPropertyName": "text"
+            }
+          }
+        }
+      },
+      "id": "a643b7b1-4ef1-5d51-bc26-73336c4b3e08",
+      "name": "Read from Library",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        40
+      ],
+      "executeOnce": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- other sources already judged to be about an AI4SG project of the same name, and known projects of that name: a news story\n-- about a project often does not describe the AI itself, which is established by the project's other sources\nWITH me AS (SELECT id, lower(regexp_replace(COALESCE(project_guess, ''), '[^[:alnum:]]+', '', 'g')) AS k FROM sources WHERE id = $1),\nnear AS (\n  SELECT 'source' AS kind, s.id, COALESCE(NULLIF(s.screen->>'headline_en', ''), s.title_en, s.title) AS headline, COALESCE(s.screen->>'reason', '') AS reason,\n         lower(regexp_replace(COALESCE(NULLIF(s.screen->>'project_name', ''), s.project_guess, ''), '[^[:alnum:]]+', '', 'g')) AS k2\n  FROM sources s, me WHERE s.id <> me.id AND s.screen->>'is_ai4sg' = 'true'\n  UNION ALL\n  SELECT 'project', p.id, p.code || ' · ' || p.name, COALESCE(p.synthesis->'llm'->>'summary', ''), lower(regexp_replace(a.n, '[^[:alnum:]]+', '', 'g'))\n  FROM ai_projects p CROSS JOIN LATERAL (SELECT p.name AS n UNION SELECT jsonb_array_elements_text(p.aliases)) a\n)\nSELECT DISTINCT ON (near.kind, near.id) near.kind, near.id, near.headline, left(near.reason, 300) AS reason\nFROM near, me\nWHERE length(me.k) >= 4 AND length(near.k2) >= 4\n  AND (near.k2 = me.k OR (length(me.k) >= 6 AND length(near.k2) >= 6 AND (near.k2 LIKE me.k || '%' OR me.k LIKE near.k2 || '%')))\nORDER BY near.kind, near.id DESC\nLIMIT 5",
+        "options": {
+          "queryReplacement": "={{ [ $('Load Source').first().json.id ] }}"
+        }
+      },
+      "id": "869b33da-58ed-598d-aa69-fb95c0f0bd0f",
+      "name": "Project Context",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1010,
+        220
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const files = $('Load Skills').all(), texts = $('Files to Text').all();\nconst inp = $('Source to Process').first().json, src = $('Load Source').first().json;\nconst context = $('Project Context').all().map(i => i.json).filter(x => x.id);\nconst domain = String(inp.domain || '');\nconst DOMAINS = {\"All domains\": \"\", \"Healthcare\": \"healthcare\", \"Public service\": \"public_service\", \"Agriculture\": \"agriculture\", \"Education\": \"education\"};\nconst label = Object.keys(DOMAINS).find(k => DOMAINS[k] === domain) || domain;\nlet searchSkill = '', module = '';\nconst defs = {};   // one-paragraph definition of every domain, for the domain tags\ntexts.forEach((t, i) => {\n  const { fileName: name, directory: dir = '' } = files[i].binary.data;\n  if (dir.endsWith('/search') && name === 'SKILL.md') searchSkill = t.json.data;\n  else if (dir.endsWith('/domains') && /^[a-z_]+\\.md$/.test(name)) {\n    const key = name.replace(/\\.md$/, ''), m = String(t.json.data).match(/\\*\\*AI4SG in [^*]+\\*\\*:?([\\s\\S]*?)\\n\\s*\\n/);\n    if (m) defs[key] = m[1].replace(/\\s+/g, ' ').trim();\n    if (domain && key === domain) module = t.json.data;\n  }\n});\nconst tagKeys = Object.keys(defs).sort();\nconst ctx = context.length ? `\\n\\n## Other sources about the same project\\nThe search agent says this source is about \"${src.project_guess}\". ` +\n  `Already screened or analysed, under that name:\\n` + context.map(c => `- ${c.kind === 'project' ? 'Known project ' : 'Source: '}${c.headline}${c.reason ? ' (' + c.reason + ')' : ''}`).join('\\n') +\n  `\\nA news story or report about a project whose AI is established by such sources does not have to describe the AI itself. If this source ` +\n  `is about the same project (check the name, organisation and place), judge is_ai4sg for the project as a whole and say so in reason; judge ` +\n  `relevance by what this source adds about the project's deployment, use or results.` : '';\n// the text comes from the library (Project Context sits in between, so it is read by name, not from the input)\nconst doc = String($('Read from Library').first().json.text || '').replace(/\\s+/g, ' ').trim();\nconst head = `URL: ${src.url}\\nTitle: ${src.title || ''}\\nCountry: ${src.country}\\nLanguage: ${src.language}` +\n  (src.project_guess ? `\\nProject named by the search agent: ${src.project_guess}` : '') + (module ? `\\nDomain of this run: ${label}` : '');\nreturn [{ json: { min_relevance: Number(inp.min_relevance) || 0.6, chars: doc.length, prompt:\n  `${searchSkill}${module ? `\\n\\n---\\n\\n# Domain module for this run: ${label}\\n\\n${module}` : ''}\\n\\n## Screening task\\n` +\n  `You are screening ONE source before the experts' detailed review. Using the definition in \"What counts as AI for Social Good\" above, ` +\n  `decide whether this source describes a concrete AI system, project, evaluation or policy whose primary purpose is a social benefit in the ` +\n  `stated country. Generic AI news, AI policy talk without a concrete project, commercial products, digitisation without a learned model, and ` +\n  `pages that merely mention AI do not qualify. A forecast, early-warning or decision-support system is AI only when it uses a learned ` +\n  `model (machine learning, deep learning, a language model, computer vision ...): a mechanistic or process-based model (e.g. a weather-driven ` +\n  `crop-disease model), a statistical index, fixed thresholds or fixed rules are not AI, so is_ai4sg is false for them even when the source ` +\n  `calls them \"predictive\" or \"smart\". When the source says AI is used but not which method, the system can still count.\\n` +\n  (module ? `This run covers the ${label} domain only. Set in_domain to true only if the source belongs to this domain AND meets the domain ` +\n            `module's \"What counts in this domain\" (including its requirement of real testing, deployment or use); otherwise false.\\n`\n          : `Set in_domain to true (no domain was chosen for this run).\\n`) +\n  `Return: is_ai4sg (boolean), in_domain (boolean), relevance (0-1: how clearly and centrally the source is about such a project), ` +\n  `reason (one English sentence; if in_domain is false, say why), headline_en (one English sentence: who does what, max 20 words), ` +\n  `project_name (the short name of the AI project or tool, as a whole project: the same tool deployed in several places is one project; \"\" if none), ` +\n  `implementing_org (who runs it, \"\" if not stated), ` +\n  `evidence_type (the strongest evidence THIS source itself reports about the AI system's real use or effects: \"rct\" = randomised trial; ` +\n  `\"quasi_experimental\" = comparison with a control group without randomisation; \"observational\" = analysis of real usage data, programme records, ` +\n  `or an accuracy or implementation study in real use; \"pilot_report\" = a report of a pilot or deployment with some figures; \"anecdotal\" = ` +\n  `announcements, descriptions or stories without data; \"none\" = nothing about real use), ` +\n  `card (what a selector needs to choose, without reading the source, the few sources most worth an in-depth analysis: ` +\n  `title_en; authors (up to 4 names, \"\" if none); organisation (the institution, agency or outlet behind the source); published (year or date); ` +\n  `source_kind (e.g. journal article, working paper, trial registration, government report, programme or developer report, government web page, ` +\n  `news article, blog); deployment (the intervention: \"tool — place or phase\"); ai_method (the AI or machine-learning method the source itself ` +\n  `names, e.g. \"CNN leaf-disease classifier\", \"LLM chatbot (GPT-4) with retrieval\", \"random-forest yield prediction\"; \"not stated\" when the ` +\n  `source only says AI or smart without naming a learned model; \"none: <what it is>\" for a mechanistic or statistical model, thresholds or ` +\n  `fixed rules); primary_source (true when the source reports its own study, ` +\n  `programme data or official figures; false when it repeats others' work, as most news does); key_figures (up to 5 short strings with the most ` +\n  `important numbers it reports from real use: adoption, usage, reach, accuracy in real use, outcomes, costs; [] if none); summary (2 to 3 ` +\n  `sentences: who did what with which AI, where, for whom, and what the source shows)), ` +\n  `domains (every domain the source belongs to, from this list; several if it sits between domains, e.g. an AI advisory chatbot of a public ` +\n  `farmer-subsidy scheme is both public_service and agriculture; [] if none:\\n${tagKeys.map(k => `  - ${k}: ${defs[k]}`).join('\\n')}).` +\n  `${ctx}\\n\\n## Source\\n${head}\\n\\n${doc.slice(0, 15000) || '(the text could not be read)'}`, domain, tag_keys: tagKeys } }];\n"
+      },
+      "id": "bc0b6a94-5217-5d76-8a8d-3113ade2d4a7",
+      "name": "Compose Screen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "hasOutputParser": true
+      },
+      "id": "df56ac71-dd2a-50c3-8c16-302be32c53c8",
+      "name": "Relevance Screen",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        1340,
+        40
+      ],
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "gpt-6-luna"
+        },
+        "options": {
+          "reasoningEffort": "low",
+          "timeout": 180000
+        }
+      },
+      "id": "daef7874-557a-5c6f-9e7d-2f0351707abd",
+      "name": "LLM (Luna)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1260,
+        280
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "ai4sgOpenAiApi01",
+          "name": "AI4SG LLM (OpenAI-compatible)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"required\": [\n    \"is_ai4sg\",\n    \"in_domain\",\n    \"relevance\",\n    \"reason\",\n    \"headline_en\",\n    \"project_name\",\n    \"implementing_org\",\n    \"evidence_type\",\n    \"domains\",\n    \"card\"\n  ],\n  \"properties\": {\n    \"is_ai4sg\": {\n      \"type\": \"boolean\"\n    },\n    \"in_domain\": {\n      \"type\": \"boolean\"\n    },\n    \"relevance\": {\n      \"type\": \"number\"\n    },\n    \"reason\": {\n      \"type\": \"string\"\n    },\n    \"headline_en\": {\n      \"type\": \"string\"\n    },\n    \"project_name\": {\n      \"type\": \"string\"\n    },\n    \"implementing_org\": {\n      \"type\": \"string\"\n    },\n    \"evidence_type\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"rct\",\n        \"quasi_experimental\",\n        \"observational\",\n        \"pilot_report\",\n        \"anecdotal\",\n        \"none\"\n      ]\n    },\n    \"domains\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"card\": {\n      \"type\": \"object\",\n      \"required\": [\n        \"title_en\",\n        \"authors\",\n        \"organisation\",\n        \"published\",\n        \"source_kind\",\n        \"deployment\",\n        \"ai_method\",\n        \"primary_source\",\n        \"key_figures\",\n        \"summary\"\n      ],\n      \"properties\": {\n        \"title_en\": {\n          \"type\": \"string\"\n        },\n        \"authors\": {\n          \"type\": \"string\"\n        },\n        \"organisation\": {\n          \"type\": \"string\"\n        },\n        \"published\": {\n          \"type\": \"string\"\n        },\n        \"source_kind\": {\n          \"type\": \"string\"\n        },\n        \"deployment\": {\n          \"type\": \"string\"\n        },\n        \"ai_method\": {\n          \"type\": \"string\"\n        },\n        \"primary_source\": {\n          \"type\": \"boolean\"\n        },\n        \"key_figures\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"summary\": {\n          \"type\": \"string\"\n        }\n      }\n    }\n  }\n}"
+      },
+      "id": "5177becf-cb2c-5003-9b48-ec57a9eee38b",
+      "name": "Screen Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1420,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// A source passes when it is AI4SG, relevant enough, and belongs to the run's domain or to another domain (it then waits in that\n// domain's queue: a TB-screening paper found by a public-service run is tagged healthcare). If the model's answer still did not fit\n// the format after the retries, nothing is decided: the source stays downloaded and is screened again in the next run.\nconst c = $('Compose Screen').first().json, o = $json.output;\nif (!o) return [{ json: { ok: false, screen: { error: String($json.error?.message || $json.error || 'screen failed') } } }];\n// tags = what the source actually is: every domain it belongs to (the run's domain is one of them only if it fits)\nlet tags = (Array.isArray(o.domains) ? o.domains : []).map(d => String(d).trim().toLowerCase().replace(/[\\s-]+/g, '_')).filter(d => c.tag_keys.includes(d));\nif (c.domain && o.in_domain === true) tags.unshift(c.domain);\ntags = [...new Set(tags)];\nconst belongs = c.domain ? (o.in_domain === true || tags.some(d => d !== c.domain)) : true;\nreturn [{ json: { ok: true, screen: o, tags, passed: o.is_ai4sg === true && belongs && (Number(o.relevance) || 0) >= c.min_relevance } }];\n"
+      },
+      "id": "8bc0df1c-ae9c-566d-a91e-eeca01ed3e90",
+      "name": "Decide",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH s AS (\n  UPDATE sources SET screen = $2::jsonb,\n         screen_relevance = CASE WHEN $6::boolean THEN $3::real ELSE screen_relevance END,\n         project_guess = COALESCE(NULLIF($4, ''), project_guess),\n         domain_tags = CASE WHEN $6::boolean THEN $7::text[] ELSE domain_tags END,\n         -- a source already analysed keeps its status (a re-screen only updates its tags); so does a duplicate that still passes\n         status = CASE WHEN NOT $6::boolean OR EXISTS (SELECT 1 FROM extractions e WHERE e.source_id = sources.id) THEN status\n                       WHEN $5::boolean AND status = 'duplicate' THEN status\n                       WHEN $5::boolean THEN 'passed' ELSE 'filtered_out' END\n  WHERE id = $1 RETURNING id, status\n), unplaced AS (   -- set aside on a re-screen: the organiser's placement is taken back\n  DELETE FROM source_projects sp USING s WHERE sp.source_id = s.id AND s.status = 'filtered_out' AND sp.method IN ('organised', 'duplicate')\n)\nSELECT id AS source_id, status FROM s",
+        "options": {
+          "queryReplacement": "={{ [ $('Load Source').first().json.id, JSON.stringify($json.screen), $json.screen.relevance ?? 0, $json.screen.project_name || '', $json.passed === true, $json.ok, '{' + ($json.tags || []).join(',') + '}' ] }}"
+        }
+      },
+      "id": "50b6a28e-bb2d-5694-aa4e-dbf8753c0eb1",
+      "name": "Save Screen",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1780,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Source to Process": {
+      "main": [
+        [
+          {
+            "node": "Load Skills",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Skills": {
+      "main": [
+        [
+          {
+            "node": "Files to Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Files to Text": {
+      "main": [
+        [
+          {
+            "node": "Load Source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Source": {
+      "main": [
+        [
+          {
+            "node": "Read from Library",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read from Library": {
+      "main": [
+        [
+          {
+            "node": "Project Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Project Context": {
+      "main": [
+        [
+          {
+            "node": "Compose Screen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose Screen": {
+      "main": [
+        [
+          {
+            "node": "Relevance Screen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Relevance Screen": {
+      "main": [
+        [
+          {
+            "node": "Decide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide": {
+      "main": [
+        [
+          {
+            "node": "Save Screen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM (Luna)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Relevance Screen",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Screen Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Relevance Screen",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Singapore"
+  },
+  "tags": []
+}

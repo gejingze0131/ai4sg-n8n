@@ -1,0 +1,309 @@
+{
+  "id": "ai4sgProjSynth01",
+  "name": "AI4SG · C3 Project Synthesis",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## C3 · Project Synthesis (one record per project, what the experts audit)\nCalled with a project id after its sources change (new source linked, source moved, projects merged). **Merge Sources** unites the extractions of all its sources by rules: every outcome, reach, cost and place keeps the source it came from (S12), the strongest stage and evidence are taken, dates span all sources. When the project has several analysed sources, **Write Project Summary** (GPT-6 Luna) reconciles them: summary, what the evidence shows, where sources agree or disagree, what is missing. Saved in `ai_projects.synthesis`.",
+        "width": 1900,
+        "height": 190
+      },
+      "id": "020d0d6f-e862-5665-b887-08fb05ef0ceb",
+      "name": "Note · title",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "project_id"
+            }
+          ]
+        }
+      },
+      "id": "8d89f5bb-9029-5929-beaa-2d3e601deea7",
+      "name": "Project to Summarise",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT p.id AS project_id, p.code, p.name, p.aliases, p.implementing_org, p.countries,\n       s.id AS source_id, s.url, s.title, s.title_en, s.doi, s.source_type, s.country, s.language, s.text_chars, s.text_level,\n       sp.method, sp.reason, e.id AS extraction_id, e.fields, e.flags, e.relevance_score\nFROM ai_projects p\nJOIN source_projects sp ON sp.project_id = p.id\nJOIN sources s ON s.id = sp.source_id\nLEFT JOIN LATERAL (SELECT * FROM extractions x WHERE x.source_id = s.id ORDER BY x.created_at DESC LIMIT 1) e ON true\nWHERE p.id = NULLIF($1, '')::bigint\nORDER BY s.id",
+        "options": {
+          "queryReplacement": "={{ [ String($json.project_id || '') ] }}"
+        }
+      },
+      "id": "efed1985-f323-5e3e-95df-39a33c668678",
+      "name": "Load Project Sources",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        240,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge the extractions of all sources linked to one project into one record. Rules, not a model: lists are united,\n// every row keeps the source it came from (S<id>), and the strongest stage / evidence is taken.\nconst rows = $input.all().map(i => i.json).filter(r => r.project_id);\nif (!rows.length) return [];\nconst P = rows[0];\nconst STAGE = ['idea', 'pilot', 'scaled'];\nconst EVID = ['none', 'anecdotal', 'pilot_report', 'observational', 'quasi_experimental', 'rct'];\nconst uniq = (a) => [...new Set(a.filter(x => x !== undefined && x !== null && String(x).trim() !== '').map(x => String(x).trim()))];\nconst tag = (sid) => 'S' + sid;\nconst live = rows.filter(r => r.fields && r.fields.is_ai4sg !== false);\nconst srcs = rows.map(r => {\n  const f = r.fields || {}, src = f.source || {};\n  return { sid: Number(r.source_id), title: src.title_en || r.title_en || r.title || r.url, title_original: src.title_original || r.title || '',\n    url: r.url, doi: r.doi || '', type: r.source_type || '', published: src.published || '', publisher: src.publisher || '',\n    language: src.language || r.language || '', country: r.country || '', text_level: r.text_level || (Number(r.text_chars) >= 3000 ? 'full' : Number(r.text_chars) > 0 ? 'abstract' : 'none'),\n    text_chars: Number(r.text_chars) || 0, extracted: !!r.extraction_id, ai4sg: f.is_ai4sg !== false && !!r.fields,\n    evidence: (f.evidence_strength || {}).type || 'none', evidence_rationale: (f.evidence_strength || {}).rationale || '',\n    score: r.relevance_score, flags: r.flags || [], headline: f.headline || '', summary: src.summary_en || '',\n    overall: (f.interpretation || {}).overall || '', credibility: (f.interpretation || {}).credibility || '',\n    link_method: r.method || '', link_reason: r.reason || '' };\n}).sort((a, b) => (EVID.indexOf(b.evidence) - EVID.indexOf(a.evidence)) || ((b.score || 0) - (a.score || 0)) || (a.sid - b.sid));\nconst F = (r) => r.fields || {};\nconst all = (get) => live.flatMap(r => { const v = get(F(r), r); return (Array.isArray(v) ? v : [v]).filter(x => x !== undefined && x !== null && x !== '').map(x => ({ v: x, sid: Number(r.source_id) })); });\n// places: one entry per place, with the sources naming it\nconst places = [];\nall(f => (f.location || {}).places || []).forEach(({ v, sid }) => {\n  const k = `${String(v.name || '').toLowerCase()}|${v.level || ''}`;\n  const e = places.find(x => x.k === k);\n  if (e) { if (!e.sids.includes(sid)) e.sids.push(sid); } else places.push({ ...v, k, sids: [sid] });\n});\nconst SCOPE = ['site', 'city', 'district', 'region', 'multi_region', 'national'];\nconst scopes = all(f => (f.location || {}).scope).map(x => x.v).filter(x => SCOPE.includes(x));\nconst stages = all(f => (f.project || {}).deployment_stage).map(x => ({ stage: x.v, sid: x.sid }));\nconst bestStage = stages.map(x => x.stage).filter(x => STAGE.includes(x)).sort((a, b) => STAGE.indexOf(b) - STAGE.indexOf(a))[0]\n  || (stages.some(x => x.stage === 'discontinued') ? 'discontinued' : 'unknown');\nconst evid = srcs.filter(x => x.ai4sg).map(x => ({ type: x.evidence, sid: x.sid, rationale: x.evidence_rationale }));\nconst best = evid.slice().sort((a, b) => EVID.indexOf(b.type) - EVID.indexOf(a.type))[0] || { type: 'none' };\nconst tl = live.map(r => ({ ...(F(r).timeline || {}), sid: Number(r.source_id) })).filter(t => t.start_date || t.end_date || (t.status && t.status !== 'unknown'));\nconst dates = (k) => tl.map(t => t[k]).filter(Boolean).sort();\nconst latest = tl.slice().sort((a, b) => String(b.end_date || b.start_date || '').localeCompare(String(a.end_date || a.start_date || '')))[0] || {};\nconst dfs = {};\nall(f => f.domain_fields || []).forEach(({ v, sid }) => { if (!v.field) return; (dfs[v.field] ||= []);\n  if (v.value && !dfs[v.field].some(x => String(x.value).toLowerCase() === String(v.value).toLowerCase())) dfs[v.field].push({ value: v.value, sid, verified: v.verified });\n  else if (v.value) { const e = dfs[v.field].find(x => String(x.value).toLowerCase() === String(v.value).toLowerCase()); e.sids = uniq([...(e.sids || [e.sid]), sid]); } });\nconst flags = {};\nrows.forEach(r => (r.flags || []).forEach(fl => { flags[fl] = (flags[fl] || 0) + 1; }));\nconst scores = srcs.filter(x => x.ai4sg && x.score != null).map(x => Number(x.score));\nconst merged = {\n  version: 1, built_at: new Date().toISOString(), source_ids: rows.map(r => Number(r.source_id)).sort((a, b) => a - b),\n  n_sources: rows.length, n_analysed: live.length,\n  names: uniq([P.name, ...(P.aliases || []), ...all(f => (f.project || {}).name).map(x => x.v)]),\n  orgs: uniq(all(f => (f.project || {}).implementing_org).map(x => x.v)),\n  partners: uniq(all(f => (f.project || {}).partners || []).map(x => x.v)), funders: uniq(all(f => (f.project || {}).funders || []).map(x => x.v)),\n  countries: uniq([...all(f => (f.project || {}).countries || []).map(x => x.v), ...rows.map(r => r.country)]),\n  domains: uniq(all(f => (f.project || {}).domain).map(x => x.v)), beneficiaries: uniq(all(f => (f.project || {}).target_beneficiaries).map(x => x.v)),\n  government_roles: uniq(all(f => (f.project || {}).government_role).map(x => x.v).filter(x => x !== 'unknown')),\n  stage: bestStage, stages, places: places.map(({ k, ...x }) => x), scope: scopes.sort((a, b) => SCOPE.indexOf(b) - SCOPE.indexOf(a))[0] || '',\n  products: uniq(all(f => String((f.technology || {}).model_or_product || '').split(/\\s*;\\s*/)).map(x => x.v)),\n  tech_categories: uniq(all(f => (f.technology || {}).category).map(x => x.v).filter(x => x !== 'unspecified')),\n  tech: all(f => (f.technology || {}).specific).map(x => ({ text: x.v, sid: x.sid })),\n  timeline: { start: dates('start_date')[0] || '', end: dates('end_date').slice(-1)[0] || '', status: latest.status || '',\n              per_source: tl.map(t => ({ sid: t.sid, start: t.start_date || '', end: t.end_date || '', status: t.status || '', as_written: t.as_written || '' })) },\n  use: { problems: all(f => (f.use || {}).problem).map(x => ({ text: x.v, sid: x.sid })), users: uniq(all(f => (f.use || {}).primary_user).map(x => x.v)),\n         ai_roles: uniq(all(f => (f.use || {}).ai_role).map(x => x.v).filter(x => x !== 'unknown')),\n         human_roles: all(f => (f.use || {}).human_role).map(x => ({ text: x.v, sid: x.sid })), channels: uniq(all(f => (f.use || {}).channel).map(x => x.v)) },\n  domain_fields: Object.entries(dfs).map(([field, values]) => ({ field, values })),\n  reach: live.map(r => ({ ...(F(r).reach || {}), sid: Number(r.source_id) })).filter(x => x.number != null && x.number !== '')\n    .map(({ evidence_refs, ...x }) => x).sort((a, b) => (Number(b.number) || 0) - (Number(a.number) || 0)),\n  cost: live.map(r => ({ ...(F(r).cost || {}), sid: Number(r.source_id) })).filter(c => c.stated || (c.breakdown || []).length)\n    .map(({ evidence_refs, ...c }) => c),\n  benefits: live.map(r => ({ ...(F(r).benefit || {}), sid: Number(r.source_id) })).filter(b => b.stated).map(({ evidence_refs, ...b }) => b),\n  outcomes: live.flatMap(r => (F(r).outcomes || []).filter(o => o && (o.name || o.domain)).map(o => ({ ...o, sid: Number(r.source_id) }))),\n  requirements: all(f => (f.implementation || {}).requirements || []).map(x => ({ text: x.v, sid: x.sid })),\n  barriers: all(f => (f.implementation || {}).barriers || []).map(x => ({ text: x.v, sid: x.sid })),\n  facilitators: all(f => (f.implementation || {}).facilitators || []).map(x => ({ text: x.v, sid: x.sid })),\n  gaps: all(f => (f.interpretation || {}).gaps || []).map(x => ({ text: x.v, sid: x.sid })),\n  evidence_best: best, evidence: evid, score_best: scores.length ? Math.max(...scores) : null, flags, sources: srcs,\n};\n// the project summary is written by the model only when several sources need reconciling\nconst many = live.length > 1;\nconst one = srcs.find(x => x.ai4sg) || srcs[0] || {};\nconst facts = JSON.stringify({ names: merged.names, orgs: merged.orgs, countries: merged.countries, places: merged.places.map(x => x.name),\n  stage: merged.stage, products: merged.products, timeline: merged.timeline, reach: merged.reach.slice(0, 6), cost: merged.cost.slice(0, 4),\n  outcomes: merged.outcomes.slice(0, 40).map(o => ({ S: o.sid, domain: o.domain, name: o.name, value: o.value, unit: o.unit, comparison: o.comparison, timing: o.timing, data: o.data_source })),\n  evidence: merged.evidence });\nconst perSource = srcs.filter(x => x.ai4sg).map(x => `[S${x.sid}] ${x.title} (${x.type}${x.published ? ', ' + x.published : ''}; evidence: ${x.evidence}; text: ${x.text_level})\\n` +\n  `Headline: ${x.headline}\\nSummary: ${x.summary}\\nInterpretation: ${x.overall}\\nCredibility: ${x.credibility}`).join('\\n\\n');\nconst prompt = `## Project summary for the experts' audit\\nSeveral sources describe the same AI-for-social-good deployment (project). The experts ` +\n  `review each source; this summary shows them the deployment as a whole. Write the project-level reading from the sources below; refer to sources as [S12]. Do not add facts the sources do not give.\\n\\n` +\n  `Return:\\n- name: a short name for the deployment, \"Tool — place/phase\" (not one study), e.g. \"qXR chest X-ray triage — Dhaka TB screening centres\"\\n` +\n  `- summary: 3-5 English sentences: who runs what AI for whom, where, since when, and how far it got (pilot, scaled, discontinued)\\n` +\n  `- evidence: 2-4 sentences: what the sources together show about benefits and costs, and how strong that evidence is\\n` +\n  `- agreements_conflicts: list of short points where sources agree or disagree (figures, dates, stage), each citing the sources\\n` +\n  `- gaps: list of what is still unknown about the project\\n\\n### Merged facts\\n${facts.slice(0, 20000)}\\n\\n### Sources\\n${perSource.slice(0, 30000)}`;\nconst fallback = { name: P.name, summary: [one.headline, one.summary].filter(Boolean).join(' '), evidence: one.overall || '',\n  agreements_conflicts: [], gaps: merged.gaps.map(g => g.text).slice(0, 8), by: 'single source' };\nreturn [{ json: { project_id: P.project_id, merged, many, prompt, fallback,\n  org: merged.orgs[0] || '', countries: merged.countries } }];\n"
+      },
+      "id": "62808ec4-326e-5806-b794-b0f7a78ee303",
+      "name": "Merge Sources",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "m",
+              "leftValue": "={{ $json.many }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "9b556b03-ac3e-5f23-bdfc-93257dc4463c",
+      "name": "Several Sources?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "hasOutputParser": true
+      },
+      "id": "d70a2795-797c-5de0-a561-e9da7b2c0eb6",
+      "name": "Write Project Summary",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        960,
+        -60
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "gpt-6-luna"
+        },
+        "options": {
+          "reasoningEffort": "medium",
+          "timeout": 180000
+        }
+      },
+      "id": "0b9c5e59-97f3-55d8-80f1-8cf1c6a98b8c",
+      "name": "LLM (Luna)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        200
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "ai4sgOpenAiApi01",
+          "name": "AI4SG LLM (OpenAI-compatible)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"required\": [\n    \"name\",\n    \"summary\",\n    \"evidence\",\n    \"agreements_conflicts\",\n    \"gaps\"\n  ],\n  \"properties\": {\n    \"name\": {\n      \"type\": \"string\"\n    },\n    \"summary\": {\n      \"type\": \"string\"\n    },\n    \"evidence\": {\n      \"type\": \"string\"\n    },\n    \"agreements_conflicts\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"gaps\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    }\n  }\n}"
+      },
+      "id": "320c0011-fa9a-5b2d-b1e6-d9588ef7361e",
+      "name": "Summary Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1040,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// the model's summary when several sources were reconciled; otherwise the single source's own reading\nconst m = $('Merge Sources').first().json;\nlet llm = null; try { llm = $('Write Project Summary').first().json.output || null; } catch (e) {}\nconst merged = { ...m.merged, llm: llm ? { ...llm, by: 'GPT-6 Luna, from ' + m.merged.n_analysed + ' sources' } : m.fallback };\nreturn [{ json: { project_id: m.project_id, synthesis: merged, org: m.org, countries: m.countries } }];\n"
+      },
+      "id": "08d6052a-7e41-598d-9eb7-a2f755712633",
+      "name": "Attach Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE ai_projects SET synthesis = $2::jsonb, implementing_org = COALESCE(NULLIF($3, ''), implementing_org),\n       countries = CASE WHEN jsonb_array_length($4::jsonb) > 0 THEN $4::jsonb ELSE countries END, updated_at = now()\nWHERE id = $1 RETURNING id AS project_id, code",
+        "options": {
+          "queryReplacement": "={{ [ $json.project_id, JSON.stringify($json.synthesis), $json.org || '', JSON.stringify($json.countries || []) ] }}"
+        }
+      },
+      "id": "125af233-17b9-5f80-8c18-d2a791892cc0",
+      "name": "Save Synthesis",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1440,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ai4sgPostgres001",
+          "name": "AI4SG Postgres"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Project to Summarise": {
+      "main": [
+        [
+          {
+            "node": "Load Project Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Project Sources": {
+      "main": [
+        [
+          {
+            "node": "Merge Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Sources": {
+      "main": [
+        [
+          {
+            "node": "Several Sources?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Several Sources?": {
+      "main": [
+        [
+          {
+            "node": "Write Project Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Attach Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Project Summary": {
+      "main": [
+        [
+          {
+            "node": "Attach Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Summary": {
+      "main": [
+        [
+          {
+            "node": "Save Synthesis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM (Luna)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Write Project Summary",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summary Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Write Project Summary",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Singapore"
+  },
+  "tags": []
+}
