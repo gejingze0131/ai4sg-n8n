@@ -438,3 +438,107 @@ BEGIN
   DELETE FROM runs WHERE id = p_run;
   RETURN jsonb_build_object('run_id', p_run, 'source_ids', to_jsonb(src), 'extractions', cardinality(ext), 'projects', cardinality(prj), 'tools', cardinality(tl));
 END $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+-- ===== v20: fewer duplicate sources and deployments =====
+-- Trigram similarity for choosing known deployments (db/web-schema.sql creates it too; it is a trusted extension, so the owner can).
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- One normalised form of a title. A new candidate and the library are compared with this same function. Before v20 the candidate
+-- side was normalised in JavaScript, which drops the vowel signs of Hindi, Bengali or Thai where this keeps them, so a known
+-- source in those scripts found again under another URL was not recognised.
+CREATE OR REPLACE FUNCTION ai4sg_title_norm(t TEXT) RETURNS TEXT
+LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$ SELECT trim(regexp_replace(lower(COALESCE(t, '')), '[^[:alnum:]]+', ' ', 'g')) $$;
+CREATE INDEX IF NOT EXISTS sources_title_norm_idx ON sources (ai4sg_title_norm(title));
+
+-- The known deployments the organiser (stage ②, GPT-6 Sol) is shown for a queue, at most p_limit plus the possible duplicates of
+-- those. Before v20 it was the newest 300 of the domain or of the queue's countries, which soon meant all deployments, so older
+-- ones were not shown and could be created again. Now in this order: deployments that already hold a source of the queue; those
+-- whose name, alias or tool appears in what a queued source of a shared country says about itself; the domain's; the rest of the
+-- queue's countries (newest first within each). maybe_same lists the shown deployments that share a country with this one and
+-- have the same tool and a similar name, or a very similar name: the organiser checks those pairs on every run and merges the
+-- ones that are one deployment.
+CREATE OR REPLACE FUNCTION ai4sg_known_projects(p_domain TEXT, p_ids BIGINT[], p_limit INT DEFAULT 400)
+RETURNS TABLE (id BIGINT, code TEXT, name TEXT, aliases JSONB, implementing_org TEXT, countries JSONB, deployment JSONB,
+               tool_code TEXT, tool_name TEXT, sources JSONB, manual BOOLEAN, why TEXT, maybe_same JSONB) AS $$
+WITH q AS (     -- what each queued source says about its deployment
+  SELECT s.id, lower(COALESCE(s.country, '')) AS country,
+         lower(concat_ws(' ', s.screen->>'project_name', s.project_guess, s.screen->'card'->>'deployment', s.screen->'card'->>'title_en')) AS txt
+  FROM sources s WHERE s.id = ANY(p_ids)
+),
+qc AS (SELECT array_agg(DISTINCT q.country) FILTER (WHERE q.country <> '') AS cs FROM q),
+pr AS (
+  SELECT p.id, p.tool_id, lower(p.name) AS n, p.updated_at,
+         COALESCE((SELECT array_agg(DISTINCT lower(c)) FROM jsonb_array_elements_text(p.countries) c), '{}') AS cs
+  FROM ai_projects p
+),
+nm AS (         -- the names a deployment goes by: its own, its aliases, its tool's
+  SELECT p.id, lower(x.n) AS n
+  FROM ai_projects p LEFT JOIN ai_tools t ON t.id = p.tool_id,
+       LATERAL (SELECT p.name UNION ALL SELECT jsonb_array_elements_text(p.aliases)
+                UNION ALL SELECT t.name UNION ALL SELECT jsonb_array_elements_text(COALESCE(t.aliases, '[]'))) x(n)
+  WHERE length(COALESCE(x.n, '')) >= 4
+),
+hit AS (        -- how clearly the queue names each deployment: the best match over queued sources of a shared country
+  SELECT nm.id, max(word_similarity(nm.n, q.txt)) AS score
+  FROM nm JOIN pr ON pr.id = nm.id JOIN q ON q.txt <> '' AND (q.country = '' OR pr.cs = '{}' OR q.country = ANY(pr.cs))
+  GROUP BY nm.id
+),
+held AS (SELECT DISTINCT sp.project_id AS id FROM source_projects sp WHERE sp.source_id = ANY(p_ids)),
+dom AS (SELECT DISTINCT sp.project_id AS id FROM source_projects sp JOIN sources s ON s.id = sp.source_id
+        WHERE p_domain = '' OR p_domain = ANY(COALESCE(s.domain_tags, ARRAY[s.domain]))),
+ranked AS (
+  SELECT pr.id,
+         CASE WHEN held.id IS NOT NULL THEN 'holds a queued source' WHEN COALESCE(hit.score, 0) >= 0.6 THEN 'named in the queue'
+              WHEN dom.id IS NOT NULL THEN 'same domain' ELSE 'same country' END AS why,
+         row_number() OVER (ORDER BY (held.id IS NOT NULL) DESC, (COALESCE(hit.score, 0) >= 0.6) DESC, COALESCE(hit.score, 0) DESC,
+                                     (dom.id IS NOT NULL) DESC, pr.updated_at DESC, pr.id) AS rk
+  FROM pr CROSS JOIN qc LEFT JOIN held ON held.id = pr.id LEFT JOIN hit ON hit.id = pr.id LEFT JOIN dom ON dom.id = pr.id
+  WHERE held.id IS NOT NULL OR COALESCE(hit.score, 0) >= 0.6 OR dom.id IS NOT NULL OR pr.cs && COALESCE(qc.cs, '{}')
+),
+top AS (SELECT r.id, r.why, r.rk FROM ranked r WHERE r.rk <= p_limit),
+pairs AS (      -- deployments that may be one and the same, where at least one of the two is shown
+  SELECT a.id AS a, b.id AS b
+  FROM pr a JOIN pr b ON a.id <> b.id
+   AND (a.id IN (SELECT top.id FROM top) OR b.id IN (SELECT top.id FROM top))
+   AND (a.cs && b.cs OR a.cs = '{}' OR b.cs = '{}')
+   AND ((a.tool_id = b.tool_id AND similarity(a.n, b.n) >= 0.5) OR similarity(a.n, b.n) >= 0.7)
+),
+listed AS (
+  SELECT top.id, top.why, top.rk FROM top
+  UNION ALL
+  SELECT DISTINCT pairs.b, 'may be the same as a shown deployment', p_limit + 1
+  FROM pairs WHERE pairs.a IN (SELECT top.id FROM top) AND pairs.b NOT IN (SELECT top.id FROM top)
+)
+SELECT p.id, p.code, p.name, p.aliases, p.implementing_org, p.countries, p.deployment, t.code, t.name,
+       (SELECT COALESCE(jsonb_agg(jsonb_build_object('sid', x.id, 'title', COALESCE(x.screen->>'headline_en', x.title_en, x.title, x.url),
+                                                     'status', x.status, 'type', x.source_type) ORDER BY x.id), '[]'::jsonb)
+        FROM (SELECT s.* FROM source_projects sp JOIN sources s ON s.id = sp.source_id WHERE sp.project_id = p.id ORDER BY s.id LIMIT 5) x),
+       EXISTS (SELECT 1 FROM source_projects sp WHERE sp.project_id = p.id AND sp.method = 'manual'),
+       l.why,
+       (SELECT COALESCE(jsonb_agg(o.code ORDER BY o.id), '[]'::jsonb)
+        FROM pairs JOIN ai_projects o ON o.id = pairs.b WHERE pairs.a = p.id AND pairs.b IN (SELECT listed.id FROM listed))
+FROM listed l JOIN ai_projects p ON p.id = l.id LEFT JOIN ai_tools t ON t.id = p.tool_id
+ORDER BY l.rk, p.id
+$$ LANGUAGE sql STABLE;
+
+-- The known tools the organiser is shown, at most p_limit (before v20 the newest 500): the tools of the shown deployments, then
+-- those whose name or alias appears in the queue, then the newest. A new tool with the name or alias of a known one is reused
+-- anyway (ai4sg_tool_for); this list is what lets the organiser reuse a tool whose name is written differently.
+CREATE OR REPLACE FUNCTION ai4sg_known_tools(p_ids BIGINT[], p_tool_codes TEXT[], p_limit INT DEFAULT 1000)
+RETURNS TABLE (code TEXT, name TEXT, aliases JSONB, developer TEXT, deployments BIGINT) AS $$
+WITH q AS (
+  SELECT lower(concat_ws(' ', s.screen->>'project_name', s.project_guess, s.screen->'card'->>'deployment', s.screen->'card'->>'title_en',
+                         s.screen->'card'->>'ai_method')) AS txt
+  FROM sources s WHERE s.id = ANY(p_ids)
+),
+hit AS (
+  SELECT t.id, max(word_similarity(lower(x.n), q.txt)) AS score
+  FROM ai_tools t, LATERAL (SELECT t.name UNION ALL SELECT jsonb_array_elements_text(t.aliases)) x(n), q
+  WHERE length(COALESCE(x.n, '')) >= 4 AND q.txt <> ''
+  GROUP BY t.id
+)
+SELECT t.code, t.name, t.aliases, t.developer, (SELECT count(*) FROM ai_projects p WHERE p.tool_id = t.id)
+FROM ai_tools t LEFT JOIN hit ON hit.id = t.id
+ORDER BY (t.code = ANY(COALESCE(p_tool_codes, '{}'))) DESC, (COALESCE(hit.score, 0) >= 0.6) DESC, t.updated_at DESC, t.id
+LIMIT p_limit
+$$ LANGUAGE sql STABLE;
